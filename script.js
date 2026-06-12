@@ -1,5 +1,5 @@
 // --- 1. STATE MANAGEMENT ---
-let fileQueue = []; // Mảng chứa danh sách các file
+let fileQueue = []; 
 let selectedFormat = 'excel';
 let isProcessing = false;
 
@@ -10,7 +10,7 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// --- 2. RENDER FORMATS ---
+// --- 2. RENDER FORMATS (Cột 2) ---
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
@@ -40,13 +40,13 @@ function renderFormats() {
 }
 
 function selectFormat(id) {
-    if(isProcessing) return; // Khóa chọn khi đang chạy
+    if(isProcessing) return;
     selectedFormat = id;
     renderFormats();
 }
 renderFormats();
 
-// --- 3. DRAG & DROP MULTIPLE FILES ---
+// --- 3. KÉO THẢ MULTIPLE FILES (Cột 1) ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 
@@ -64,64 +64,84 @@ fileInput.addEventListener('change', (e) => {
 
 function handleFiles(files) {
     Array.from(files).forEach(file => {
-        // Thêm file vào mảng với trạng thái mặc định là 'pending'
-        fileQueue.push({
-            id: Date.now() + Math.random(),
-            file: file,
-            status: 'pending' // pending | processing | done
-        });
+        fileQueue.push({ id: Date.now() + Math.random(), file: file, status: 'pending', formatTarget: null });
     });
     renderQueue();
 }
 
-// --- 4. QUẢN LÝ DANH SÁCH & TRẠNG THÁI (QUEUE) ---
-const queueList = document.getElementById('queueList');
-const queueCounter = document.getElementById('queueCounter');
+// --- 4. RENDER DANH SÁCH & NÚT XỬ LÝ ---
+const pendingList = document.getElementById('pendingList');
+const completedList = document.getElementById('completedList');
+const pendingCounter = document.getElementById('pendingCounter');
+const completedCounter = document.getElementById('completedCounter');
 const processBtn = document.getElementById('processBtn');
 
 function renderQueue() {
-    queueCounter.textContent = `${fileQueue.length} file`;
-    
-    if (fileQueue.length === 0) {
-        queueList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-xs text-center px-4"><svg class="w-10 h-10 mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>Danh sách trống.<br>Hãy thêm file để bắt đầu.</div>`;
-        processBtn.classList.remove('bg-purple-600', 'text-white', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]', 'hover:bg-purple-500');
-        processBtn.classList.add('bg-[#1f192e]', 'text-gray-400');
-        processBtn.textContent = 'BẮT ĐẦU XỬ LÝ';
-        return;
-    }
+    let pendingHTML = '';
+    let completedHTML = '';
+    let pCount = 0;
+    let cCount = 0;
 
-    queueList.innerHTML = '';
-    fileQueue.forEach((item, index) => {
+    fileQueue.forEach((item) => {
         const sizeKB = (item.file.size / 1024).toFixed(1);
-        let statusBadge = '';
         
-        if (item.status === 'pending') {
-            statusBadge = `<span class="text-[10px] bg-gray-700/50 text-gray-300 px-2 py-0.5 rounded border border-gray-600">⏳ Chờ xử lý</span>
-                           ${!isProcessing ? `<button onclick="removeFile('${item.id}')" class="ml-2 text-red-400 hover:text-red-300 text-xs">✕</button>` : ''}`;
-        } else if (item.status === 'processing') {
-            statusBadge = `<span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang chạy...</span>`;
-        } else if (item.status === 'done') {
-            statusBadge = `<span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">✅ Hoàn thành</span>`;
-        }
+        if (item.status === 'pending' || item.status === 'processing') {
+            pCount++;
+            const isRunning = item.status === 'processing';
+            const statusBadge = isRunning
+                ? `<span class="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30 flex items-center gap-1 animate-pulse">Đang chạy...</span>`
+                : `<button onclick="removeFile('${item.id}')" class="text-gray-500 hover:text-red-400 p-1">✕</button>`;
 
-        const html = `
-            <div class="flex items-center justify-between p-3 rounded-xl bg-black/20 border ${item.status === 'processing' ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'border-gray-700/30'}">
-                <div class="flex-1 min-w-0 pr-3">
-                    <div class="text-sm font-semibold text-gray-200 truncate" title="${item.file.name}">${index + 1}. ${item.file.name}</div>
-                    <div class="text-[10px] text-gray-500">${sizeKB} KB</div>
-                </div>
-                <div class="flex items-center flex-shrink-0">
+            pendingHTML += `
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border ${isRunning ? 'border-blue-500/40 shadow-inner' : 'border-gray-700/30'}">
+                    <div class="flex-1 min-w-0 pr-2">
+                        <div class="text-[13px] font-medium text-gray-200 truncate">${item.file.name}</div>
+                        <div class="text-[9px] text-gray-500">${sizeKB} KB</div>
+                    </div>
                     ${statusBadge}
                 </div>
-            </div>
-        `;
-        queueList.insertAdjacentHTML('beforeend', html);
+            `;
+        } else if (item.status === 'done') {
+            cCount++;
+            completedHTML += `
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-emerald-900/10 border border-emerald-800/30">
+                    <div class="flex-1 min-w-0 pr-2">
+                        <div class="text-[13px] font-medium text-emerald-100 truncate line-through opacity-70">${item.file.name}</div>
+                        <div class="text-[9px] text-emerald-400/70">Đã chuyển sang ${item.formatTarget.toUpperCase()}</div>
+                    </div>
+                    <span class="text-emerald-400">✅</span>
+                </div>
+            `;
+        }
     });
 
-    if(!isProcessing) {
-        processBtn.classList.add('bg-purple-600', 'text-white', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]', 'hover:bg-purple-500');
-        processBtn.classList.remove('bg-[#1f192e]', 'text-gray-400');
-        processBtn.textContent = `XỬ LÝ ${fileQueue.length} FILE NGAY`;
+    // Cập nhật Cột 1
+    pendingCounter.textContent = pCount;
+    if (pCount === 0) {
+        pendingList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-xs text-center"><svg class="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>Trống</div>`;
+    } else {
+        pendingList.innerHTML = pendingHTML;
+    }
+
+    // Cập nhật Cột 3
+    completedCounter.textContent = cCount;
+    if (cCount === 0) {
+        completedList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-[11px] text-center"><svg class="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>Chưa có file nào hoàn thành</div>`;
+    } else {
+        completedList.innerHTML = completedHTML;
+    }
+
+    // Nút Bắt đầu
+    if (!isProcessing) {
+        if (pCount > 0) {
+            processBtn.classList.add('bg-purple-600', 'text-white', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]', 'hover:bg-purple-500', 'border-purple-500');
+            processBtn.classList.remove('bg-[#1f192e]', 'text-gray-400', 'border-gray-700/50');
+            processBtn.textContent = `XỬ LÝ ${pCount} FILE NGAY`;
+        } else {
+            processBtn.classList.remove('bg-purple-600', 'text-white', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]', 'hover:bg-purple-500', 'border-purple-500');
+            processBtn.classList.add('bg-[#1f192e]', 'text-gray-400', 'border-gray-700/50');
+            processBtn.textContent = 'BẮT ĐẦU XỬ LÝ';
+        }
     }
 }
 
@@ -130,68 +150,60 @@ function removeFile(id) {
     renderQueue();
 }
 
-// --- 5. LOGIC XỬ LÝ TUẦN TỰ & TẢI XUỐNG ---
+// --- 5. LOGIC CHẠY VÀ DI CHUYỂN FILE ---
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
     isProcessing = true;
     processBtn.disabled = true;
-    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG CHẠY HỆ THỐNG...</span>`;
+    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ...</span>`;
     processBtn.classList.remove('hover:bg-purple-500');
 
-    // Chạy vòng lặp từng file một (Tuần tự)
+    // Khóa định dạng hiện tại để áp dụng cho toàn bộ lô đang chạy
+    const targetFormat = selectedFormat;
+
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
-        // 1. Cập nhật trạng thái thành 'đang xử lý'
+        // Bật trạng thái 'Đang chạy' ở Cột 1
         fileQueue[i].status = 'processing';
         renderQueue();
 
-        // 2. GỌI API THỰC TẾ Ở ĐÂY (Hiện tại đang mô phỏng bằng setTimeout)
-        await new Promise(resolve => setTimeout(resolve, 2500)); // Giả lập thời gian Gemini xử lý mất 2.5s mỗi file
+        // [MÔ PHỎNG GỌI API GEMINI Ở ĐÂY]
+        await new Promise(resolve => setTimeout(resolve, 2000)); 
 
-        // 3. Xử lý xong, cập nhật trạng thái 'Hoàn thành'
+        // Xong file, lưu lại định dạng đích và chuyển trạng thái 'Hoàn thành'
+        fileQueue[i].formatTarget = targetFormat;
         fileQueue[i].status = 'done';
+        
+        // Gọi hàm render lại -> File tự động biến mất ở Cột 1 và xuất hiện ở Cột 3
         renderQueue();
 
-        // 4. Tự động kích hoạt tải xuống file đó ngay lập tức
-        triggerAutoDownload(fileQueue[i].file.name, selectedFormat);
+        triggerAutoDownload(fileQueue[i].file.name, targetFormat);
     }
 
-    // Hoàn tất toàn bộ lô
+    // Reset lại giao diện sau khi chạy xong toàn bộ
     isProcessing = false;
     processBtn.disabled = false;
-    processBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500', 'shadow-[0_0_20px_rgba(16,185,129,0.4)]');
-    processBtn.classList.remove('bg-purple-600', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]');
-    processBtn.textContent = '✅ ĐÃ HOÀN TẤT TOÀN BỘ';
-    
-    // Reset lại nút sau 4 giây
-    setTimeout(() => {
-        fileQueue = []; // Xóa danh sách để sẵn sàng đợt mới
-        renderQueue();
-    }, 4000);
+    renderQueue();
 });
 
-// Hàm mô phỏng việc tạo file và ép trình duyệt tải về
 function triggerAutoDownload(originalName, format) {
     const extensionMap = { 'excel': '.xlsx', 'word': '.docx', 'ppt': '.pptx', 'pdf': '_new.pdf' };
     const newExt = extensionMap[format] || '.txt';
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
     const finalFileName = `${baseName}_converted${newExt}`;
 
-    // Tạo một file ảo chứa dữ liệu text (sau này bạn sẽ nhét dữ liệu từ API Gemini vào đây)
-    const blob = new Blob(["Dữ liệu mô phỏng được trả về từ AI cho file " + originalName], { type: "text/plain" });
+    const blob = new Blob(["Mô phỏng dữ liệu Excel/Word"], { type: "text/plain" });
     const url = window.URL.createObjectURL(blob);
     
-    // Tạo thẻ <a> ẩn để click tải về
     const a = document.createElement('a');
     a.href = url;
     a.download = finalFileName;
     document.body.appendChild(a);
     a.click();
     
-    // Dọn dẹp bộ nhớ
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 }
