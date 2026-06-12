@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bộ xử lý Tài liệu Đa năng</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-[#1a1025] to-[#0d0914] text-white font-sans flex flex-col items-center justify-center p-8">
+    
+    <div class="text-center mb-12">
+        <h1 class="mt-6 text-5xl font-bold">Bộ xử lý Tài liệu Đa năng</h1>
+        <p class="mt-4 text-gray-400 text-lg">
+            Chuyển đổi file đa chiều linh hoạt giữa PDF, Word, Excel, PowerPoint.
+        </p>
+    </div>
+
+    <div class="flex flex-col md:flex-row w-full max-w-5xl gap-6">
+        
+        <div class="flex-1 bg-[#1c1627] p-6 rounded-2xl border border-gray-700 shadow-2xl">
+            <h2 class="font-bold text-gray-300 mb-4 text-sm">1. TẢI LÊN TÀI LIỆU</h2>
+            <div class="border-2 border-dashed border-gray-600 rounded-xl h-80 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-800/50 transition-colors">
+                <p class="text-gray-400 font-medium">NHẤN HOẶC KÉO THẢ TÀI LIỆU VÀO ĐÂY</p>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-[#1c1627] p-6 rounded-2xl border border-gray-700 shadow-2xl flex flex-col">
+            <h2 class="font-bold text-gray-300 mb-4 text-sm">2. CHỌN ĐỊNH DẠNG ĐÍCH</h2>
+            <div class="flex flex-col gap-4 flex-1">
+                
+                <button class="p-4 text-left rounded-xl border bg-white text-black font-bold border-white shadow-lg transition-transform hover:scale-[1.02]">
+                    <div class="flex justify-between items-center">
+                        <div>Microsoft Excel</div>
+                        <span class="text-green-500 text-xl">✓</span>
+                    </div>
+                    <div class="text-xs text-gray-600 font-normal mt-1">EXTRACT DATA GRID</div>
+                </button>
+
+                <button class="p-4 text-left rounded-xl border bg-[#2a2438] text-gray-300 border-gray-600 transition-transform hover:scale-[1.02] hover:bg-[#322b42]">
+                    <div class="font-semibold">Microsoft Word</div>
+                    <div class="text-xs text-gray-400 mt-1">PRESERVE TABLES & LAYOUT</div>
+                </button>
+
+                 <button class="p-4 text-left rounded-xl border bg-[#2a2438] text-gray-300 border-gray-600 transition-transform hover:scale-[1.02] hover:bg-[#322b42]">
+                    <div class="font-semibold">PowerPoint Outline</div>
+                    <div class="text-xs text-gray-400 mt-1">GENERATE SLIDE DECK</div>
+                </button>
+
+            </div>
+            
+            <button class="w-full mt-6 bg-[#251e33] py-4 rounded-xl border border-gray-700 text-gray-300 font-bold hover:bg-[#342a47] transition-colors">
+                BẮT ĐẦU XỬ LÝ
+            </button>
+        </div>
+
+    </div>
+</body>
+</html>
