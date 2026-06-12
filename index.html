@@ -6,7 +6,6 @@
     <title>Bộ xử lý Tài liệu Đa năng</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Tạo hiệu ứng nền màu sắc uốn lượn cực mượt như ảnh gốc */
         body {
             background-color: #11091a;
             background-image: 
@@ -15,11 +14,14 @@
                 radial-gradient(circle at 50% 100%, rgba(35, 15, 60, 0.6) 0%, transparent 50%);
             background-attachment: fixed;
         }
-        /* Hiệu ứng kính mờ cho 2 khung chính */
         .glass-panel {
             background: rgba(28, 22, 39, 0.6);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
+        }
+        .drag-active {
+            border-color: #a855f7 !important;
+            background-color: rgba(168, 85, 247, 0.1) !important;
         }
     </style>
 </head>
@@ -45,11 +47,21 @@
                     <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">1</span>
                     <h2 class="font-bold text-white text-sm tracking-wide">TẢI LÊN TÀI LIỆU</h2>
                 </div>
-                <div class="border-2 border-dashed border-gray-600/50 rounded-2xl h-[320px] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-gray-500 transition-all group">
-                    <div class="w-14 h-14 rounded-full bg-white/5 group-hover:bg-white/10 flex items-center justify-center mb-4 transition-colors">
+                
+                <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                
+                <div id="dropZone" class="border-2 border-dashed border-gray-600/50 rounded-2xl h-[320px] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-gray-500 transition-all group">
+                    <div id="uploadIcon" class="w-14 h-14 rounded-full bg-white/5 group-hover:bg-white/10 flex items-center justify-center mb-4 transition-colors">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     </div>
-                    <p class="text-gray-400 font-semibold text-xs tracking-wide">NHẤN HOẶC KÉO THẢ TÀI LIỆU VÀO ĐÂY</p>
+                    <p id="uploadText" class="text-gray-400 font-semibold text-xs tracking-wide text-center px-4">NHẤN HOẶC KÉO THẢ TÀI LIỆU VÀO ĐÂY<br><span class="text-[10px] font-normal opacity-70 mt-1 block">Hỗ trợ: PDF, Word, Excel, Hình ảnh</span></p>
+                    
+                    <div id="fileInfo" class="hidden flex flex-col items-center">
+                        <svg class="w-12 h-12 text-emerald-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <p id="fileName" class="text-white font-bold text-sm text-center break-all px-4"></p>
+                        <p id="fileSize" class="text-gray-400 text-xs mt-1"></p>
+                        <button id="removeFileBtn" class="mt-4 text-xs text-red-400 hover:text-red-300 underline">Xóa file</button>
+                    </div>
                 </div>
             </div>
 
@@ -59,44 +71,10 @@
                     <h2 class="font-bold text-white text-sm tracking-wide">CHỌN ĐỊNH DẠNG</h2>
                 </div>
                 
-                <div class="flex flex-col gap-4 flex-1">
-                    
-                    <button class="flex items-center gap-4 p-4 text-left rounded-2xl border border-gray-700/50 bg-[#161224]/80 hover:bg-[#201a33] transition-colors">
-                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-blue-400">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                        </div>
-                        <div>
-                            <div class="font-bold text-[15px]">Microsoft Word</div>
-                            <div class="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5">PRESERVE TABLES & LAYOUT</div>
-                        </div>
-                    </button>
-
-                    <button class="flex items-center justify-between p-4 text-left rounded-2xl border-none bg-[#f4f6f8] text-[#0f172a] shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:scale-[1.02] transition-transform">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-xl bg-[#213547] flex items-center justify-center text-white">
-                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm0 16H8v-2h6v2zm2-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                            </div>
-                            <div>
-                                <div class="font-extrabold text-[15px]">Microsoft Excel</div>
-                                <div class="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5">EXTRACT DATA GRID</div>
-                            </div>
-                        </div>
-                        <svg class="w-6 h-6 text-emerald-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    </button>
-
-                    <button class="flex items-center gap-4 p-4 text-left rounded-2xl border border-gray-700/50 bg-[#161224]/80 hover:bg-[#201a33] transition-colors">
-                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-orange-400">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-3 5-3v6zm7 0l-5-3 5-3v6z"/></svg>
-                        </div>
-                        <div>
-                            <div class="font-bold text-[15px]">PowerPoint Outline</div>
-                            <div class="text-[10px] text-gray-500 font-bold tracking-widest mt-0.5">GENERATE SLIDE DECK IDEAS</div>
-                        </div>
-                    </button>
-
-                </div>
+                <div class="flex flex-col gap-4 flex-1" id="formatContainer">
+                    </div>
                 
-                <button class="w-full mt-6 bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide hover:bg-[#2c2442] hover:text-white transition-all">
+                <button id="processBtn" class="w-full mt-6 bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide hover:bg-[#2c2442] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     BẮT ĐẦU XỬ LÝ
                 </button>
             </div>
@@ -107,5 +85,7 @@
     <div class="w-full text-center mt-12 pb-4 text-[10px] text-gray-600 font-bold tracking-widest uppercase">
         © 2026 DATACENTER VPTX · ADVANCED AI SYSTEMS
     </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
