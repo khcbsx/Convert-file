@@ -60,6 +60,7 @@ dropZone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', (e) => {
     if (!isProcessing && e.target.files.length > 0) handleFiles(e.target.files);
+    fileInput.value = ''; // Reset input để có thể chọn lại cùng 1 file
 });
 
 function handleFiles(files) {
@@ -75,6 +76,14 @@ const completedList = document.getElementById('completedList');
 const pendingCounter = document.getElementById('pendingCounter');
 const completedCounter = document.getElementById('completedCounter');
 const processBtn = document.getElementById('processBtn');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn'); // Nút mới
+
+// Logic dọn dẹp lịch sử
+clearHistoryBtn.addEventListener('click', () => {
+    // Chỉ giữ lại những file chưa chạy xong (pending, processing)
+    fileQueue = fileQueue.filter(item => item.status !== 'done');
+    renderQueue();
+});
 
 function renderQueue() {
     let pendingHTML = '';
@@ -123,12 +132,14 @@ function renderQueue() {
         pendingList.innerHTML = pendingHTML;
     }
 
-    // Cập nhật Cột 3
+    // Cập nhật Cột 3 & Ẩn/hiện nút Xóa
     completedCounter.textContent = cCount;
     if (cCount === 0) {
         completedList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-[11px] text-center"><svg class="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>Chưa có file nào hoàn thành</div>`;
+        clearHistoryBtn.classList.add('hidden');
     } else {
         completedList.innerHTML = completedHTML;
+        clearHistoryBtn.classList.remove('hidden');
     }
 
     // Nút Bắt đầu
@@ -160,33 +171,26 @@ processBtn.addEventListener('click', async () => {
     processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ...</span>`;
     processBtn.classList.remove('hover:bg-purple-500');
 
-    // Khóa định dạng hiện tại để áp dụng cho toàn bộ lô đang chạy
     const targetFormat = selectedFormat;
 
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
-        // Bật trạng thái 'Đang chạy' ở Cột 1
         fileQueue[i].status = 'processing';
         renderQueue();
 
-        // [MÔ PHỎNG GỌI API GEMINI Ở ĐÂY]
         await new Promise(resolve => setTimeout(resolve, 2000)); 
 
-        // Xong file, lưu lại định dạng đích và chuyển trạng thái 'Hoàn thành'
         fileQueue[i].formatTarget = targetFormat;
         fileQueue[i].status = 'done';
         
-        // Gọi hàm render lại -> File tự động biến mất ở Cột 1 và xuất hiện ở Cột 3
         renderQueue();
-
         triggerAutoDownload(fileQueue[i].file.name, targetFormat);
     }
 
-    // Reset lại giao diện sau khi chạy xong toàn bộ
     isProcessing = false;
     processBtn.disabled = false;
-    renderQueue();
+    renderQueue(); // Giao diện tự động trở về trạng thái đón file mới
 });
 
 function triggerAutoDownload(originalName, format) {
