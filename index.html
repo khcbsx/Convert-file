@@ -64,8 +64,7 @@
                     <span id="pendingCounter" class="text-[10px] font-bold bg-gray-700/50 px-2 py-0.5 rounded text-gray-300">0</span>
                 </div>
                 
-                <div id="pendingList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
-                    </div>
+                <div id="pendingList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1"></div>
             </div>
 
             <div class="flex-1 glass-panel p-6 rounded-3xl border border-gray-700/50 shadow-2xl flex flex-col relative">
@@ -74,8 +73,7 @@
                     <h2 class="font-bold text-white text-sm tracking-wide">ĐỊNH DẠNG ĐÍCH</h2>
                 </div>
                 
-                <div class="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-2 mb-4" id="formatContainer">
-                    </div>
+                <div class="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-2 mb-4" id="formatContainer"></div>
 
                 <button id="processBtn" class="w-full shrink-0 bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-700/50">
                     BẮT ĐẦU XỬ LÝ
@@ -90,11 +88,13 @@
                 
                 <div class="flex items-center justify-between mb-2 px-1">
                     <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lịch sử tải xuống</span>
-                    <span id="completedCounter" class="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded">0</span>
+                    <div class="flex items-center gap-3">
+                        <button id="clearHistoryBtn" class="hidden text-[10px] text-gray-400 hover:text-red-400 font-bold underline transition-colors cursor-pointer">Xóa lịch sử</button>
+                        <span id="completedCounter" class="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded">0</span>
+                    </div>
                 </div>
 
-                <div id="completedList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
-                    </div>
+                <div id="completedList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1"></div>
             </div>
 
         </div>
