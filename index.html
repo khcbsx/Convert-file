@@ -23,6 +23,10 @@
             border-color: #a855f7 !important;
             background-color: rgba(168, 85, 247, 0.1) !important;
         }
+        /* Custom scrollbar cho cột danh sách file */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
     </style>
 </head>
 <body class="min-h-screen text-white font-sans flex flex-col items-center justify-between p-8 relative overflow-hidden">
@@ -33,48 +37,58 @@
             PROFESSIONAL AI WORK SUITE
         </div>
 
-        <div class="text-center mb-12">
+        <div class="text-center mb-10">
             <h1 class="text-[42px] font-extrabold tracking-tight mb-3">Bộ xử lý Tài liệu Đa năng</h1>
             <p class="text-gray-400 text-base max-w-xl mx-auto">
-                Trích xuất và chuyển đổi PDF, hình ảnh sang Word/Excel giữ nguyên cấu trúc bảng biểu.
+                Chuyển đổi hàng loạt file đa chiều linh hoạt giữa PDF, Word, Excel, PowerPoint.
             </p>
         </div>
 
-        <div class="flex flex-col md:flex-row w-full max-w-5xl gap-6">
+        <div class="flex flex-col lg:flex-row w-full max-w-7xl gap-6 h-[480px]">
             
-            <div class="flex-1 glass-panel p-6 rounded-3xl border border-gray-700/50 shadow-2xl">
+            <div class="flex-1 glass-panel p-6 rounded-3xl border border-gray-700/50 shadow-2xl flex flex-col">
                 <div class="flex items-center gap-3 mb-6">
                     <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">1</span>
-                    <h2 class="font-bold text-white text-sm tracking-wide">TẢI LÊN TÀI LIỆU</h2>
+                    <h2 class="font-bold text-white text-sm tracking-wide">TẢI LÊN NHIỀU FILE</h2>
                 </div>
                 
-                <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
                 
-                <div id="dropZone" class="border-2 border-dashed border-gray-600/50 rounded-2xl h-[320px] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-gray-500 transition-all group">
-                    <div id="uploadIcon" class="w-14 h-14 rounded-full bg-white/5 group-hover:bg-white/10 flex items-center justify-center mb-4 transition-colors">
+                <div id="dropZone" class="flex-1 border-2 border-dashed border-gray-600/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-gray-500 transition-all group">
+                    <div class="w-14 h-14 rounded-full bg-white/5 group-hover:bg-white/10 flex items-center justify-center mb-4 transition-colors">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     </div>
-                    <p id="uploadText" class="text-gray-400 font-semibold text-xs tracking-wide text-center px-4">NHẤN HOẶC KÉO THẢ TÀI LIỆU VÀO ĐÂY<br><span class="text-[10px] font-normal opacity-70 mt-1 block">Hỗ trợ: PDF, Word, Excel, Hình ảnh</span></p>
-                    
-                    <div id="fileInfo" class="hidden flex flex-col items-center">
-                        <svg class="w-12 h-12 text-emerald-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <p id="fileName" class="text-white font-bold text-sm text-center break-all px-4"></p>
-                        <p id="fileSize" class="text-gray-400 text-xs mt-1"></p>
-                        <button id="removeFileBtn" class="mt-4 text-xs text-red-400 hover:text-red-300 underline">Xóa file</button>
-                    </div>
+                    <p class="text-gray-400 font-semibold text-xs tracking-wide text-center px-4">NHẤN HOẶC KÉO THẢ FILE VÀO ĐÂY<br><span class="text-[10px] font-normal opacity-70 mt-1 block">Có thể chọn nhiều file cùng lúc</span></p>
                 </div>
             </div>
 
             <div class="flex-1 glass-panel p-6 rounded-3xl border border-gray-700/50 shadow-2xl flex flex-col">
                 <div class="flex items-center gap-3 mb-6">
                     <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">2</span>
-                    <h2 class="font-bold text-white text-sm tracking-wide">CHỌN ĐỊNH DẠNG</h2>
+                    <h2 class="font-bold text-white text-sm tracking-wide">ĐỊNH DẠNG ĐÍCH</h2>
                 </div>
                 
-                <div class="flex flex-col gap-4 flex-1" id="formatContainer">
+                <div class="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-2" id="formatContainer">
                     </div>
+            </div>
+
+            <div class="flex-1 glass-panel p-6 rounded-3xl border border-gray-700/50 shadow-2xl flex flex-col">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm font-bold border border-purple-500/30">3</span>
+                        <h2 class="font-bold text-white text-sm tracking-wide">TIẾN TRÌNH XỬ LÝ</h2>
+                    </div>
+                    <span id="queueCounter" class="text-xs text-gray-400 font-bold bg-gray-800 px-2 py-1 rounded-md">0 file</span>
+                </div>
                 
-                <button id="processBtn" class="w-full mt-6 bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide hover:bg-[#2c2442] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <div id="queueList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 mb-4">
+                    <div class="h-full flex flex-col items-center justify-center text-gray-500 text-xs text-center px-4">
+                        <svg class="w-10 h-10 mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        Danh sách trống.<br>Hãy thêm file để bắt đầu.
+                    </div>
+                </div>
+                
+                <button id="processBtn" class="w-full bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     BẮT ĐẦU XỬ LÝ
                 </button>
             </div>
@@ -82,7 +96,7 @@
         </div>
     </div>
 
-    <div class="w-full text-center mt-12 pb-4 text-[10px] text-gray-600 font-bold tracking-widest uppercase">
+    <div class="w-full text-center mt-8 pb-4 text-[10px] text-gray-600 font-bold tracking-widest uppercase">
         © 2026 DATACENTER VPTX · ADVANCED AI SYSTEMS
     </div>
 
