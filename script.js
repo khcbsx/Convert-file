@@ -157,12 +157,11 @@ function removeFile(id) {
     renderQueue();
 }
 
-// --- 5. LOGIC KIỂM TRA KEY THỦ CÔNG ---
+// --- 5. LOGIC KIỂM TRA KEY & PHIÊN BẢN MODEL MỚI ---
 const checkKeyBtn = document.getElementById('checkKeyBtn');
 const geminiApiKeys = document.getElementById('geminiApiKeys');
 const keyStatus = document.getElementById('keyStatus');
 
-// Nếu người dùng thay đổi chữ trong ô Key, tự động reset trạng thái để bắt buộc kiểm tra lại
 geminiApiKeys.addEventListener('input', () => {
     activeValidConfig = null;
     keyStatus.textContent = "⚠️ Cần kiểm tra lại Key mới!";
@@ -173,7 +172,13 @@ async function findValidKeyAndModel(keysText) {
     const keys = keysText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
     if (keys.length === 0) return null;
 
-    const modelsToTest = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro'];
+    // ĐÃ CẬP NHẬT: Thêm các Model 3 Flash và 2.5 Flash dựa theo ảnh chụp của bạn
+    const modelsToTest = [
+        'gemini-3-flash', 
+        'gemini-2.5-flash', 
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro-latest'
+    ];
 
     for (let key of keys) {
         for (let model of modelsToTest) {
@@ -188,7 +193,7 @@ async function findValidKeyAndModel(keysText) {
                     return { key: key, model: model };
                 }
             } catch (e) {
-                // Bỏ qua lỗi và tiếp tục vòng lặp
+                // Bỏ qua lỗi 404 và nhảy sang test model tiếp theo
             }
         }
     }
@@ -204,29 +209,25 @@ checkKeyBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Trạng thái Loading của nút Check
     checkKeyBtn.disabled = true;
-    checkKeyBtn.innerHTML = `<svg class="animate-spin h-3 w-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> THỬ...`;
+    checkKeyBtn.innerHTML = `<svg class="animate-spin h-3 w-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG QUÉT...`;
     
-    keyStatus.textContent = "Đang quét danh sách Key...";
+    keyStatus.textContent = "Đang quét danh sách Model...";
     keyStatus.className = "text-[9px] text-blue-400 font-mono animate-pulse";
 
-    // Quét API
     activeValidConfig = await findValidKeyAndModel(rawKeys);
 
     if (!activeValidConfig) {
-        keyStatus.textContent = "❌ Toàn bộ Key đều lỗi/quá hạn!";
+        keyStatus.textContent = "❌ Key bị lỗi hoặc không hỗ trợ các phiên bản Model!";
         keyStatus.className = "text-[9px] text-red-400 font-mono";
     } else {
         const maskedKey = activeValidConfig.key.substring(0, 8) + "...";
         keyStatus.innerHTML = `<span class="text-emerald-400">✅ Đã kết nối: ${maskedKey} (${activeValidConfig.model})</span>`;
     }
 
-    // Phục hồi nút Check
     checkKeyBtn.disabled = false;
     checkKeyBtn.innerHTML = `KIỂM TRA KEY`;
 });
-
 
 // --- 6. KẾT NỐI API GEMINI & CHUYỂN ĐỔI ---
 function fileToBase64(file) {
@@ -274,7 +275,6 @@ processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
-    // Chặn luồng nếu chưa có cấu hình Key hợp lệ
     if (!activeValidConfig) {
         alert("Vui lòng dán Key và bấm nút KIỂM TRA KEY để xác thực trước khi chạy xử lý!");
         document.getElementById('geminiApiKeys').focus();
@@ -308,7 +308,6 @@ processBtn.addEventListener('click', async () => {
             alert(`Lỗi xử lý file ${fileQueue[i].file.name}: ${error.message}`);
             fileQueue[i].status = 'pending'; 
             
-            // Xóa cấu hình nếu đang chạy mà gặp lỗi (ví dụ hết Quota)
             activeValidConfig = null; 
             keyStatus.textContent = "⚠️ Key vừa bị lỗi/hết hạn mức! Vui lòng quét Key mới.";
             keyStatus.className = "text-[9px] text-orange-400 font-mono";
