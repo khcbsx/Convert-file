@@ -3,8 +3,8 @@ let fileQueue = [];
 let selectedFormat = 'excel';
 let isProcessing = false;
 
-// Lưu trữ cấu hình API đã được xác thực thành công
-let activeValidConfig = null; // { key: string, model: string }
+// Lưu trữ cấu hình API đã được kiểm tra sống sót
+let activeValidConfig = null; 
 
 const formats = [
     { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
@@ -157,19 +157,27 @@ function removeFile(id) {
     renderQueue();
 }
 
-// --- 5. LOGIC QUÉT VÀ KIỂM TRA KEY AI ẢO ---
+// --- 5. LOGIC KIỂM TRA KEY THỦ CÔNG ---
+const checkKeyBtn = document.getElementById('checkKeyBtn');
+const geminiApiKeys = document.getElementById('geminiApiKeys');
+const keyStatus = document.getElementById('keyStatus');
+
+// Nếu người dùng thay đổi chữ trong ô Key, tự động reset trạng thái để bắt buộc kiểm tra lại
+geminiApiKeys.addEventListener('input', () => {
+    activeValidConfig = null;
+    keyStatus.textContent = "⚠️ Cần kiểm tra lại Key mới!";
+    keyStatus.className = "text-[9px] text-orange-400 font-mono";
+});
+
 async function findValidKeyAndModel(keysText) {
-    // Tách các key bằng dấu phẩy, khoảng trắng, hoặc xuống dòng
     const keys = keysText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
-    
     if (keys.length === 0) return null;
 
-    const modelsToTest = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+    const modelsToTest = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro'];
 
     for (let key of keys) {
         for (let model of modelsToTest) {
             try {
-                // Gửi một tín hiệu ping rất nhỏ để test Key + Model
                 const testRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -177,15 +185,48 @@ async function findValidKeyAndModel(keysText) {
                 });
 
                 if (testRes.ok) {
-                    return { key: key, model: model }; // Trả về Key và Model tương thích đầu tiên tìm thấy
+                    return { key: key, model: model };
                 }
             } catch (e) {
-                // Bỏ qua lỗi và test model/key tiếp theo
+                // Bỏ qua lỗi và tiếp tục vòng lặp
             }
         }
     }
-    return null; // Không có key nào chạy được
+    return null;
 }
+
+checkKeyBtn.addEventListener('click', async () => {
+    const rawKeys = geminiApiKeys.value.trim();
+
+    if (!rawKeys) {
+        keyStatus.textContent = "⚠️ Vui lòng dán Key trước!";
+        keyStatus.className = "text-[9px] text-orange-400 font-mono";
+        return;
+    }
+
+    // Trạng thái Loading của nút Check
+    checkKeyBtn.disabled = true;
+    checkKeyBtn.innerHTML = `<svg class="animate-spin h-3 w-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> THỬ...`;
+    
+    keyStatus.textContent = "Đang quét danh sách Key...";
+    keyStatus.className = "text-[9px] text-blue-400 font-mono animate-pulse";
+
+    // Quét API
+    activeValidConfig = await findValidKeyAndModel(rawKeys);
+
+    if (!activeValidConfig) {
+        keyStatus.textContent = "❌ Toàn bộ Key đều lỗi/quá hạn!";
+        keyStatus.className = "text-[9px] text-red-400 font-mono";
+    } else {
+        const maskedKey = activeValidConfig.key.substring(0, 8) + "...";
+        keyStatus.innerHTML = `<span class="text-emerald-400">✅ Đã kết nối: ${maskedKey} (${activeValidConfig.model})</span>`;
+    }
+
+    // Phục hồi nút Check
+    checkKeyBtn.disabled = false;
+    checkKeyBtn.innerHTML = `KIỂM TRA KEY`;
+});
+
 
 // --- 6. KẾT NỐI API GEMINI & CHUYỂN ĐỔI ---
 function fileToBase64(file) {
@@ -233,43 +274,15 @@ processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
-    const rawKeys = document.getElementById('geminiApiKeys').value;
-    const statusText = document.getElementById('keyStatus');
-
-    if (!rawKeys) {
-        alert("Vui lòng dán danh sách Gemini API Key vào ô góc trên bên phải để bắt đầu!");
+    // Chặn luồng nếu chưa có cấu hình Key hợp lệ
+    if (!activeValidConfig) {
+        alert("Vui lòng dán Key và bấm nút KIỂM TRA KEY để xác thực trước khi chạy xử lý!");
         document.getElementById('geminiApiKeys').focus();
         return;
     }
 
     isProcessing = true;
     processBtn.disabled = true;
-    
-    // GIAI ĐOẠN 1: QUÉT KEY
-    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG KIỂM TRA KEY AI...</span>`;
-    statusText.textContent = "Đang quét tìm Key khả dụng...";
-    statusText.className = "text-[9px] text-blue-400 font-mono px-2 animate-pulse";
-
-    // Chỉ tìm Key mới nếu chưa có Key nào đang hoạt động
-    if (!activeValidConfig) {
-        activeValidConfig = await findValidKeyAndModel(rawKeys);
-    }
-
-    if (!activeValidConfig) {
-        alert("Toàn bộ Key bạn cung cấp đều bị lỗi (404 Not Found / Quá giới hạn). Vui lòng kiểm tra lại Key hoặc tạo dự án mới trên Google AI Studio.");
-        statusText.textContent = "❌ Tất cả Key đều không hợp lệ!";
-        statusText.className = "text-[9px] text-red-400 font-mono px-2";
-        isProcessing = false;
-        processBtn.disabled = false;
-        renderQueue();
-        return;
-    }
-
-    // Hiển thị Key đang dùng (che bớt) và Model
-    const maskedKey = activeValidConfig.key.substring(0, 8) + "...";
-    statusText.innerHTML = `<span class="text-emerald-400">✅ Đang dùng Key: ${maskedKey} (${activeValidConfig.model})</span>`;
-
-    // GIAI ĐOẠN 2: XỬ LÝ FILE
     processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> AI ĐANG XỬ LÝ DỮ LIỆU...</span>`;
     processBtn.classList.remove('hover:bg-purple-500');
 
@@ -295,13 +308,13 @@ processBtn.addEventListener('click', async () => {
             alert(`Lỗi xử lý file ${fileQueue[i].file.name}: ${error.message}`);
             fileQueue[i].status = 'pending'; 
             
-            // Nếu lỗi giữa chừng (có thể do Key hết hạn mức quota), reset config để lần bấm sau quét lại Key mới
+            // Xóa cấu hình nếu đang chạy mà gặp lỗi (ví dụ hết Quota)
             activeValidConfig = null; 
-            statusText.textContent = "⚠️ Key hiện tại bị lỗi/hết hạn mức. Bấm xử lý để quét Key mới.";
-            statusText.className = "text-[9px] text-orange-400 font-mono px-2";
+            keyStatus.textContent = "⚠️ Key vừa bị lỗi/hết hạn mức! Vui lòng quét Key mới.";
+            keyStatus.className = "text-[9px] text-orange-400 font-mono";
             
             renderQueue();
-            break; // Dừng vòng lặp để người dùng quét key mới
+            break; 
         }
     }
 
