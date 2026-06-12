@@ -1,4 +1,4 @@
-// --- 1. STATE MANAGEMENT ---
+// --- 1. QUẢN LÝ TRẠNG THÁI (STATE) ---
 let fileQueue = []; 
 let selectedFormat = 'excel';
 let isProcessing = false;
@@ -10,7 +10,17 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// --- 2. RENDER FORMATS (Cột 2) ---
+// --- 2. ẨN/HIỆN API KEY ---
+function toggleKeyVisibility() {
+    const keyInput = document.getElementById('geminiApiKey');
+    if (keyInput.type === 'password') {
+        keyInput.type = 'text';
+    } else {
+        keyInput.type = 'password';
+    }
+}
+
+// --- 3. RENDER ĐỊNH DẠNG (Cột 2) ---
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
@@ -46,7 +56,7 @@ function selectFormat(id) {
 }
 renderFormats();
 
-// --- 3. KÉO THẢ MULTIPLE FILES (Cột 1) ---
+// --- 4. KÉO THẢ MULTIPLE FILES (Cột 1) ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 
@@ -60,7 +70,7 @@ dropZone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', (e) => {
     if (!isProcessing && e.target.files.length > 0) handleFiles(e.target.files);
-    fileInput.value = ''; // Reset input để có thể chọn lại cùng 1 file
+    fileInput.value = '';
 });
 
 function handleFiles(files) {
@@ -70,17 +80,15 @@ function handleFiles(files) {
     renderQueue();
 }
 
-// --- 4. RENDER DANH SÁCH & NÚT XỬ LÝ ---
+// --- 5. RENDER DANH SÁCH & NÚT XỬ LÝ ---
 const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const pendingCounter = document.getElementById('pendingCounter');
 const completedCounter = document.getElementById('completedCounter');
 const processBtn = document.getElementById('processBtn');
-const clearHistoryBtn = document.getElementById('clearHistoryBtn'); // Nút mới
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-// Logic dọn dẹp lịch sử
 clearHistoryBtn.addEventListener('click', () => {
-    // Chỉ giữ lại những file chưa chạy xong (pending, processing)
     fileQueue = fileQueue.filter(item => item.status !== 'done');
     renderQueue();
 });
@@ -124,7 +132,6 @@ function renderQueue() {
         }
     });
 
-    // Cập nhật Cột 1
     pendingCounter.textContent = pCount;
     if (pCount === 0) {
         pendingList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-xs text-center"><svg class="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>Trống</div>`;
@@ -132,7 +139,6 @@ function renderQueue() {
         pendingList.innerHTML = pendingHTML;
     }
 
-    // Cập nhật Cột 3 & Ẩn/hiện nút Xóa
     completedCounter.textContent = cCount;
     if (cCount === 0) {
         completedList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-500 text-[11px] text-center"><svg class="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>Chưa có file nào hoàn thành</div>`;
@@ -142,7 +148,6 @@ function renderQueue() {
         clearHistoryBtn.classList.remove('hidden');
     }
 
-    // Nút Bắt đầu
     if (!isProcessing) {
         if (pCount > 0) {
             processBtn.classList.add('bg-purple-600', 'text-white', 'shadow-[0_0_20px_rgba(168,85,247,0.4)]', 'hover:bg-purple-500', 'border-purple-500');
@@ -161,14 +166,70 @@ function removeFile(id) {
     renderQueue();
 }
 
-// --- 5. LOGIC CHẠY VÀ DI CHUYỂN FILE ---
+// --- 6. KẾT NỐI API GEMINI & CHUYỂN ĐỔI ---
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]); // Cắt bỏ phần header data:image/pdf...
+        reader.onerror = error => reject(error);
+    });
+}
+
+async function callGeminiAPI(file, targetFormat, apiKey) {
+    const base64Data = await fileToBase64(file);
+    
+    // Viết Prompt (Câu lệnh) để ra lệnh cho AI
+    let promptInstruction = "Hãy trích xuất văn bản từ tài liệu này.";
+    if (targetFormat === 'excel') {
+        promptInstruction = "Trích xuất toàn bộ bảng biểu và dữ liệu từ tài liệu này. Định dạng đầu ra bắt buộc là CSV chuẩn, phân cách bằng dấu phẩy (,). Không thêm bất kỳ văn bản giải thích hay markdown code block nào, chỉ trả về đúng dữ liệu CSV.";
+    } else if (targetFormat === 'word') {
+        promptInstruction = "Trích xuất toàn bộ văn bản, giữ nguyên cấu trúc đoạn văn, tiêu đề. Trình bày rõ ràng. Không sử dụng markdown code block.";
+    }
+
+    // Gọi lên máy chủ Google (Sử dụng model gemini-1.5-flash)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{
+                parts: [
+                    { text: promptInstruction },
+                    {
+                        inlineData: {
+                            mimeType: file.type || "application/pdf",
+                            data: base64Data
+                        }
+                    }
+                ]
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || "Lỗi khi kết nối với Gemini API");
+    }
+
+    const result = await response.json();
+    return result.candidates[0].content.parts[0].text;
+}
+
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
+    // Kiểm tra đã nhập Key chưa
+    const apiKey = document.getElementById('geminiApiKey').value.trim();
+    if (!apiKey) {
+        alert("Vui lòng dán Gemini API Key vào ô ở góc trên bên phải để bắt đầu!");
+        document.getElementById('geminiApiKey').focus();
+        return;
+    }
+
     isProcessing = true;
     processBtn.disabled = true;
-    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ...</span>`;
+    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> AI ĐANG XỬ LÝ...</span>`;
     processBtn.classList.remove('hover:bg-purple-500');
 
     const targetFormat = selectedFormat;
@@ -179,29 +240,44 @@ processBtn.addEventListener('click', async () => {
         fileQueue[i].status = 'processing';
         renderQueue();
 
-        await new Promise(resolve => setTimeout(resolve, 2000)); 
+        try {
+            // Gửi cho AI và chờ kết quả
+            const aiGeneratedText = await callGeminiAPI(fileQueue[i].file, targetFormat, apiKey);
+            
+            fileQueue[i].formatTarget = targetFormat;
+            fileQueue[i].status = 'done';
+            
+            renderQueue();
+            
+            // Tải kết quả thật về máy
+            triggerAutoDownload(fileQueue[i].file.name, targetFormat, aiGeneratedText);
 
-        fileQueue[i].formatTarget = targetFormat;
-        fileQueue[i].status = 'done';
-        
-        renderQueue();
-        triggerAutoDownload(fileQueue[i].file.name, targetFormat);
+        } catch (error) {
+            console.error("Lỗi:", error);
+            alert(`Lỗi xử lý file ${fileQueue[i].file.name}: ${error.message}`);
+            fileQueue[i].status = 'pending'; // Reset lại để chạy lại sau
+            renderQueue();
+        }
     }
 
     isProcessing = false;
     processBtn.disabled = false;
-    renderQueue(); // Giao diện tự động trở về trạng thái đón file mới
+    renderQueue();
 });
 
-function triggerAutoDownload(originalName, format) {
-    const extensionMap = { 'excel': '.xlsx', 'word': '.docx', 'ppt': '.pptx', 'pdf': '_new.pdf' };
+function triggerAutoDownload(originalName, format, fileContent) {
+    // Nếu chọn Excel, lưu đuôi .csv để mở được thành bảng. Nếu chọn Word, lưu .doc
+    const extensionMap = { 'excel': '.csv', 'word': '.doc', 'ppt': '.txt', 'pdf': '_extracted.txt' };
     const newExt = extensionMap[format] || '.txt';
+    
+    // Thêm BOM vào đầu file CSV để Excel hỗ trợ hiển thị tiếng Việt UTF-8 chuẩn xác
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, fileContent], { type: "text/plain;charset=utf-8" });
+    
+    const url = window.URL.createObjectURL(blob);
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
     const finalFileName = `${baseName}_converted${newExt}`;
 
-    const blob = new Blob(["Mô phỏng dữ liệu Excel/Word"], { type: "text/plain" });
-    const url = window.URL.createObjectURL(blob);
-    
     const a = document.createElement('a');
     a.href = url;
     a.download = finalFileName;
