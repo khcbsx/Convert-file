@@ -1,1 +1,1 @@
-rm README.md
+npx create-next-app@latest .
