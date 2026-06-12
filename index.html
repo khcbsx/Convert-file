@@ -39,12 +39,12 @@
                 PROFESSIONAL AI WORK SUITE
             </div>
             
-            <div class="flex items-center gap-2 bg-gray-900/60 border border-gray-700/50 rounded-xl px-3 py-2 backdrop-blur-md shadow-lg">
-                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
-                <input type="password" id="geminiApiKey" placeholder="Nhập Gemini API Key..." class="bg-transparent border-none outline-none text-xs text-gray-300 w-48 placeholder-gray-600 font-mono">
-                <button onclick="toggleKeyVisibility()" class="text-gray-500 hover:text-gray-300 transition-colors">
-                    <svg id="eyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                </button>
+            <div class="flex flex-col items-end gap-1">
+                <div class="flex items-start gap-2 bg-gray-900/60 border border-gray-700/50 rounded-xl px-3 py-2 backdrop-blur-md shadow-lg">
+                    <svg class="w-4 h-4 text-purple-400 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    <textarea id="geminiApiKeys" rows="2" placeholder="Dán nhiều Key vào đây, cách nhau bằng dấu phẩy hoặc xuống dòng..." class="bg-transparent border-none outline-none text-[10px] text-gray-300 w-64 placeholder-gray-600 font-mono resize-none custom-scrollbar"></textarea>
+                </div>
+                <div id="keyStatus" class="text-[9px] text-gray-500 font-mono px-2">Trạng thái API: Chờ kiểm tra...</div>
             </div>
         </div>
 
@@ -62,19 +62,15 @@
                     <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">1</span>
                     <h2 class="font-bold text-white text-sm tracking-wide">TẢI LÊN FILE</h2>
                 </div>
-                
                 <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                
                 <div id="dropZone" class="h-28 mb-4 shrink-0 border-2 border-dashed border-gray-600/50 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-gray-500 transition-all group">
                     <svg class="w-6 h-6 text-gray-400 mb-2 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     <p class="text-gray-400 font-semibold text-[10px] tracking-wide text-center">NHẤN HOẶC KÉO THẢ VÀO ĐÂY</p>
                 </div>
-
                 <div class="flex items-center justify-between mb-2 px-1">
                     <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Danh sách chờ</span>
                     <span id="pendingCounter" class="text-[10px] font-bold bg-gray-700/50 px-2 py-0.5 rounded text-gray-300">0</span>
                 </div>
-                
                 <div id="pendingList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1"></div>
             </div>
 
@@ -83,9 +79,7 @@
                     <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">2</span>
                     <h2 class="font-bold text-white text-sm tracking-wide">ĐỊNH DẠNG ĐÍCH</h2>
                 </div>
-                
                 <div class="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-2 mb-4" id="formatContainer"></div>
-
                 <button id="processBtn" class="w-full shrink-0 bg-[#1f192e] py-4 rounded-2xl text-gray-400 font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-700/50">
                     BẮT ĐẦU XỬ LÝ
                 </button>
@@ -96,7 +90,6 @@
                     <span class="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm font-bold border border-emerald-500/20">3</span>
                     <h2 class="font-bold text-white text-sm tracking-wide">FILE ĐÃ HOÀN THÀNH</h2>
                 </div>
-                
                 <div class="flex items-center justify-between mb-2 px-1">
                     <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lịch sử tải xuống</span>
                     <div class="flex items-center gap-3">
@@ -104,7 +97,6 @@
                         <span id="completedCounter" class="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded">0</span>
                     </div>
                 </div>
-
                 <div id="completedList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1"></div>
             </div>
 
