@@ -3,6 +3,9 @@ let fileQueue = [];
 let selectedFormat = 'excel';
 let isProcessing = false;
 
+// Lưu trữ cấu hình API đã được xác thực thành công
+let activeValidConfig = null; // { key: string, model: string }
+
 const formats = [
     { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
     { id: 'excel', name: 'Microsoft Excel', desc: 'EXTRACT DATA', color: 'text-emerald-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm0 16H8v-2h6v2zm2-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
@@ -10,17 +13,7 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// --- 2. ẨN/HIỆN API KEY ---
-function toggleKeyVisibility() {
-    const keyInput = document.getElementById('geminiApiKey');
-    if (keyInput.type === 'password') {
-        keyInput.type = 'text';
-    } else {
-        keyInput.type = 'password';
-    }
-}
-
-// --- 3. RENDER ĐỊNH DẠNG (Cột 2) ---
+// --- 2. RENDER ĐỊNH DẠNG (Cột 2) ---
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
@@ -48,7 +41,6 @@ function renderFormats() {
         formatContainer.insertAdjacentHTML('beforeend', btnHTML);
     });
 }
-
 function selectFormat(id) {
     if(isProcessing) return;
     selectedFormat = id;
@@ -56,7 +48,7 @@ function selectFormat(id) {
 }
 renderFormats();
 
-// --- 4. KÉO THẢ MULTIPLE FILES (Cột 1) ---
+// --- 3. KÉO THẢ MULTIPLE FILES (Cột 1) ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 
@@ -80,7 +72,7 @@ function handleFiles(files) {
     renderQueue();
 }
 
-// --- 5. RENDER DANH SÁCH & NÚT XỬ LÝ ---
+// --- 4. RENDER DANH SÁCH & NÚT XỬ LÝ ---
 const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const pendingCounter = document.getElementById('pendingCounter');
@@ -101,7 +93,6 @@ function renderQueue() {
 
     fileQueue.forEach((item) => {
         const sizeKB = (item.file.size / 1024).toFixed(1);
-        
         if (item.status === 'pending' || item.status === 'processing') {
             pCount++;
             const isRunning = item.status === 'processing';
@@ -166,20 +157,49 @@ function removeFile(id) {
     renderQueue();
 }
 
+// --- 5. LOGIC QUÉT VÀ KIỂM TRA KEY AI ẢO ---
+async function findValidKeyAndModel(keysText) {
+    // Tách các key bằng dấu phẩy, khoảng trắng, hoặc xuống dòng
+    const keys = keysText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
+    
+    if (keys.length === 0) return null;
+
+    const modelsToTest = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+
+    for (let key of keys) {
+        for (let model of modelsToTest) {
+            try {
+                // Gửi một tín hiệu ping rất nhỏ để test Key + Model
+                const testRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
+                });
+
+                if (testRes.ok) {
+                    return { key: key, model: model }; // Trả về Key và Model tương thích đầu tiên tìm thấy
+                }
+            } catch (e) {
+                // Bỏ qua lỗi và test model/key tiếp theo
+            }
+        }
+    }
+    return null; // Không có key nào chạy được
+}
+
 // --- 6. KẾT NỐI API GEMINI & CHUYỂN ĐỔI ---
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]); // Cắt bỏ phần header data:image/pdf...
+        reader.onload = () => resolve(reader.result.split(',')[1]);
         reader.onerror = error => reject(error);
     });
 }
 
-async function callGeminiAPI(file, targetFormat, apiKey) {
+async function callGeminiAPI(file, targetFormat, config) {
     const base64Data = await fileToBase64(file);
     
-    // Viết Prompt (Câu lệnh) để ra lệnh cho AI
     let promptInstruction = "Hãy trích xuất văn bản từ tài liệu này.";
     if (targetFormat === 'excel') {
         promptInstruction = "Trích xuất toàn bộ bảng biểu và dữ liệu từ tài liệu này. Định dạng đầu ra bắt buộc là CSV chuẩn, phân cách bằng dấu phẩy (,). Không thêm bất kỳ văn bản giải thích hay markdown code block nào, chỉ trả về đúng dữ liệu CSV.";
@@ -187,20 +207,14 @@ async function callGeminiAPI(file, targetFormat, apiKey) {
         promptInstruction = "Trích xuất toàn bộ văn bản, giữ nguyên cấu trúc đoạn văn, tiêu đề. Trình bày rõ ràng. Không sử dụng markdown code block.";
     }
 
-    // Gọi lên máy chủ Google (Sử dụng model gemini-1.5-flash)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             contents: [{
                 parts: [
                     { text: promptInstruction },
-                    {
-                        inlineData: {
-                            mimeType: file.type || "application/pdf",
-                            data: base64Data
-                        }
-                    }
+                    { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }
                 ]
             }]
         })
@@ -219,17 +233,44 @@ processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
-    // Kiểm tra đã nhập Key chưa
-    const apiKey = document.getElementById('geminiApiKey').value.trim();
-    if (!apiKey) {
-        alert("Vui lòng dán Gemini API Key vào ô ở góc trên bên phải để bắt đầu!");
-        document.getElementById('geminiApiKey').focus();
+    const rawKeys = document.getElementById('geminiApiKeys').value;
+    const statusText = document.getElementById('keyStatus');
+
+    if (!rawKeys) {
+        alert("Vui lòng dán danh sách Gemini API Key vào ô góc trên bên phải để bắt đầu!");
+        document.getElementById('geminiApiKeys').focus();
         return;
     }
 
     isProcessing = true;
     processBtn.disabled = true;
-    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> AI ĐANG XỬ LÝ...</span>`;
+    
+    // GIAI ĐOẠN 1: QUÉT KEY
+    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG KIỂM TRA KEY AI...</span>`;
+    statusText.textContent = "Đang quét tìm Key khả dụng...";
+    statusText.className = "text-[9px] text-blue-400 font-mono px-2 animate-pulse";
+
+    // Chỉ tìm Key mới nếu chưa có Key nào đang hoạt động
+    if (!activeValidConfig) {
+        activeValidConfig = await findValidKeyAndModel(rawKeys);
+    }
+
+    if (!activeValidConfig) {
+        alert("Toàn bộ Key bạn cung cấp đều bị lỗi (404 Not Found / Quá giới hạn). Vui lòng kiểm tra lại Key hoặc tạo dự án mới trên Google AI Studio.");
+        statusText.textContent = "❌ Tất cả Key đều không hợp lệ!";
+        statusText.className = "text-[9px] text-red-400 font-mono px-2";
+        isProcessing = false;
+        processBtn.disabled = false;
+        renderQueue();
+        return;
+    }
+
+    // Hiển thị Key đang dùng (che bớt) và Model
+    const maskedKey = activeValidConfig.key.substring(0, 8) + "...";
+    statusText.innerHTML = `<span class="text-emerald-400">✅ Đang dùng Key: ${maskedKey} (${activeValidConfig.model})</span>`;
+
+    // GIAI ĐOẠN 2: XỬ LÝ FILE
+    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> AI ĐANG XỬ LÝ DỮ LIỆU...</span>`;
     processBtn.classList.remove('hover:bg-purple-500');
 
     const targetFormat = selectedFormat;
@@ -241,22 +282,26 @@ processBtn.addEventListener('click', async () => {
         renderQueue();
 
         try {
-            // Gửi cho AI và chờ kết quả
-            const aiGeneratedText = await callGeminiAPI(fileQueue[i].file, targetFormat, apiKey);
+            const aiGeneratedText = await callGeminiAPI(fileQueue[i].file, targetFormat, activeValidConfig);
             
             fileQueue[i].formatTarget = targetFormat;
             fileQueue[i].status = 'done';
             
             renderQueue();
-            
-            // Tải kết quả thật về máy
             triggerAutoDownload(fileQueue[i].file.name, targetFormat, aiGeneratedText);
 
         } catch (error) {
             console.error("Lỗi:", error);
             alert(`Lỗi xử lý file ${fileQueue[i].file.name}: ${error.message}`);
-            fileQueue[i].status = 'pending'; // Reset lại để chạy lại sau
+            fileQueue[i].status = 'pending'; 
+            
+            // Nếu lỗi giữa chừng (có thể do Key hết hạn mức quota), reset config để lần bấm sau quét lại Key mới
+            activeValidConfig = null; 
+            statusText.textContent = "⚠️ Key hiện tại bị lỗi/hết hạn mức. Bấm xử lý để quét Key mới.";
+            statusText.className = "text-[9px] text-orange-400 font-mono px-2";
+            
             renderQueue();
+            break; // Dừng vòng lặp để người dùng quét key mới
         }
     }
 
@@ -266,14 +311,10 @@ processBtn.addEventListener('click', async () => {
 });
 
 function triggerAutoDownload(originalName, format, fileContent) {
-    // Nếu chọn Excel, lưu đuôi .csv để mở được thành bảng. Nếu chọn Word, lưu .doc
     const extensionMap = { 'excel': '.csv', 'word': '.doc', 'ppt': '.txt', 'pdf': '_extracted.txt' };
     const newExt = extensionMap[format] || '.txt';
-    
-    // Thêm BOM vào đầu file CSV để Excel hỗ trợ hiển thị tiếng Việt UTF-8 chuẩn xác
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
     const blob = new Blob([bom, fileContent], { type: "text/plain;charset=utf-8" });
-    
     const url = window.URL.createObjectURL(blob);
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
     const finalFileName = `${baseName}_converted${newExt}`;
