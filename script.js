@@ -117,7 +117,25 @@ function fileToBase64(file) {
 
 async function callGeminiAPI(file, targetFormat) {
     const base64Data = await fileToBase64(file);
-    let promptInstruction = targetFormat === 'excel' ? "Trích xuất bảng biểu thành CSV chuẩn." : "Trích xuất văn bản.";
+    
+    // ĐÂY LÀ "BỘ NÃO" ĐIỀU HƯỚNG AI - ĐÃ ĐƯỢC TỐI ƯU HÓA CHO ĐƠN HÀNG (PO)
+    let promptInstruction = "";
+    if (targetFormat === 'excel') {
+        promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu. Trích xuất dữ liệu từ hóa đơn/PO này thành định dạng CSV chuẩn (phân cách bằng dấu phẩy). KHÔNG sử dụng markdown block (như \`\`\`csv), chỉ trả về text thuần.
+        TUÂN THỦ NGHIÊM NGẶT CẤU TRÚC SAU:
+        1. Dòng đầu tiên (Vùng 1): Cột 1 ghi chữ "PO", Cột 2 ghi số Purchase Order (ví dụ: 1702173).
+        2. Dòng thứ 2: Để trống (,).
+        3. Vùng 2 (Thông tin chung): Trích xuất thành 2 cột. Cột 1 là tiêu đề (Supplier, Deliver To, Date, Printout date, Freight terms, Payment terms, Agreement no, Currency, Warehouse...). Cột 2 là nội dung. Nếu nội dung có nhiều dòng (như địa chỉ), hãy gộp chung thành 1 chuỗi trên cùng 1 ô.
+        4. Dòng tiếp theo: Để trống (,).
+        5. Vùng 3 (Bảng chi tiết): 
+           - Trích xuất toàn bộ bảng.
+           - LOẠI BỎ TOÀN BỘ ký tự '$' ở các cột đơn giá (Price) và thành tiền (Sub Total). Chỉ giữ lại con số.
+        6. Dòng Tổng tiền: Ở dưới cùng của bảng, ghi chữ "Total Amount" ở cột áp chót, và con số tổng tiền (đã bỏ dấu $) phải nằm chính xác ở cột cuối cùng (ngay dưới cột Sub Total).
+        
+        *LƯU Ý QUAN TRỌNG: Bất kỳ nội dung nào (như địa chỉ, tên hàng) có chứa dấu phẩy (,) thì bắt buộc phải bọc nội dung đó trong dấu ngoặc kép ("") để tránh lỗi cấu trúc CSV.`;
+    } else {
+        promptInstruction = "Trích xuất toàn bộ văn bản, giữ nguyên cấu trúc đoạn văn, tiêu đề. Trình bày rõ ràng. Không sử dụng markdown code block.";
+    }
     
     const validKeys = PREDEFINED_KEYS.filter(k => k && k.length > 10);
     if(validKeys.length === 0) throw new Error("Chưa có API Key! Hãy thêm Key vào file script.js.");
