@@ -7,7 +7,6 @@ const PREDEFINED_KEYS = [
     "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE",
     "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"
 ];
-
 // --- 2. QUẢN LÝ TRẠNG THÁI ---
 let fileQueue = []; 
 let selectedFormat = 'excel';
@@ -21,8 +20,7 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// Giữ lại hàm rỗng để HTML cũ không báo lỗi nếu bạn lỡ bấm vào nút "Cấu Hình API"
-function toggleModal() { alert("Bạn đang sử dụng chế độ nạp Key tự động trong mã nguồn. Vui lòng mở file script.js để thêm/sửa Key!"); }
+function toggleModal() { alert("Bạn đang sử dụng chế độ nạp Key tự động. Vui lòng mở mã nguồn file script.js để thêm/sửa Key!"); }
 
 // --- 3. RENDER ĐỊNH DẠNG ---
 const formatContainer = document.getElementById('formatContainer');
@@ -51,7 +49,7 @@ const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 dropZone.addEventListener('click', () => { if(!isProcessing) fileInput.click(); });
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'); });
 dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-active'); if (!isProcessing && e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files); });
 fileInput.addEventListener('change', (e) => { if (!isProcessing && e.target.files.length > 0) handleFiles(e.target.files); fileInput.value = ''; });
 
@@ -65,7 +63,6 @@ const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const processBtn = document.getElementById('processBtn');
 
-// Đảm bảo nút xóa lịch sử hoạt động nếu HTML có
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 if(clearHistoryBtn) {
     clearHistoryBtn.addEventListener('click', () => { fileQueue = fileQueue.filter(i => i.status !== 'done'); renderQueue(); });
@@ -105,7 +102,7 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - GỌI API & TỰ ĐỘNG XOAY VÒNG KEY / MODEL
+// 6. LOGIC AI - CẬP NHẬT MODEL 2.5 VÀ 3.0
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -120,18 +117,22 @@ async function callGeminiAPI(file, targetFormat) {
     const base64Data = await fileToBase64(file);
     let promptInstruction = targetFormat === 'excel' ? "Trích xuất bảng biểu thành CSV chuẩn." : "Trích xuất văn bản.";
     
-    // Lọc ra các Key hợp lệ (tránh dòng trống)
     const validKeys = PREDEFINED_KEYS.filter(k => k && k.length > 10);
-    if(validKeys.length === 0) throw new Error("Chưa có API Key! Hãy mở file script.js và dán Key vào mục PREDEFINED_KEYS.");
+    if(validKeys.length === 0) throw new Error("Chưa có API Key!");
 
     let attempts = 0;
     
-    // Vòng lặp xoay vòng: Sẽ thử đủ số lượng Key bạn có, nếu chết hết mới báo lỗi
     while (attempts < validKeys.length) {
         const currentKey = validKeys[currentKeyIndex % validKeys.length];
         
-        // Tự động thử 2 model phổ biến nhất để né lỗi 404
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        // ĐÃ THÊM CÁC MODEL MỚI NHẤT DỰA VÀO ẢNH BẠN CUNG CẤP
+        const modelsToTry = [
+            'gemini-2.5-flash', 
+            'gemini-3-flash', 
+            'gemini-2.0-flash', 
+            'gemini-1.5-flash', 
+            'gemini-1.5-pro'
+        ];
         
         for (let model of modelsToTry) {
             try {
@@ -143,16 +144,17 @@ async function callGeminiAPI(file, targetFormat) {
 
                 if (response.ok) {
                     const data = await response.json();
-                    return data.candidates[0].content.parts[0].text; // Thành công!
+                    console.log(`Đã chạy thành công với Model: ${model}`); // In ra Console để bạn dễ theo dõi
+                    return data.candidates[0].content.parts[0].text; 
                 }
             } catch (e) {
-                // Bỏ qua lỗi mạng nội bộ
+                // Ignore lỗi để thử model tiếp theo
             }
         }
         
-        // Nếu chạy tới đây nghĩa là Key hiện tại bị lỗi (Hết Quota, sai Key, v.v.)
+        // Key hiện tại không chạy được model nào -> Chuyển Key
         console.warn(`Key thứ ${(currentKeyIndex % validKeys.length) + 1} bị lỗi hoặc hết lượt. Đang chuyển sang Key tiếp theo...`);
-        currentKeyIndex++; // Chuyển sang Key kế tiếp
+        currentKeyIndex++; 
         attempts++;
     }
 
@@ -187,10 +189,10 @@ processBtn.addEventListener('click', async () => {
 
         } catch (error) {
             console.error(error);
-            alert(error.message); // Hiển thị thông báo "HẾT API KEY"
+            alert(error.message);
             fileQueue[i].status = 'pending'; 
             renderQueue();
-            break; // Dừng hệ thống để bạn đi thay Key
+            break; 
         }
     }
 
