@@ -118,23 +118,31 @@ function fileToBase64(file) {
 async function callGeminiAPI(file, targetFormat) {
     const base64Data = await fileToBase64(file);
     
-    // ĐÂY LÀ "BỘ NÃO" ĐIỀU HƯỚNG AI - ĐÃ ĐƯỢC TỐI ƯU HÓA CHO ĐƠN HÀNG (PO)
+    // BỘ NÃO ĐỘNG: TỰ ĐỘNG PHÁT HIỆN TRƯỜNG MỚI VÀ XẾP BẢNG LINH HOẠT
     let promptInstruction = "";
     if (targetFormat === 'excel') {
-        promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu. Trích xuất dữ liệu từ hóa đơn/PO này thành định dạng CSV chuẩn (phân cách bằng dấu phẩy). KHÔNG sử dụng markdown block (như \`\`\`csv), chỉ trả về text thuần.
-        TUÂN THỦ NGHIÊM NGẶT CẤU TRÚC SAU:
-        1. Dòng đầu tiên (Vùng 1): Cột 1 ghi chữ "PO", Cột 2 ghi số Purchase Order (ví dụ: 1702173).
-        2. Dòng thứ 2: Để trống (,).
-        3. Vùng 2 (Thông tin chung): Trích xuất thành 2 cột. Cột 1 là tiêu đề (Supplier, Deliver To, Date, Printout date, Freight terms, Payment terms, Agreement no, Currency, Warehouse...). Cột 2 là nội dung. Nếu nội dung có nhiều dòng (như địa chỉ), hãy gộp chung thành 1 chuỗi trên cùng 1 ô.
-        4. Dòng tiếp theo: Để trống (,).
-        5. Vùng 3 (Bảng chi tiết): 
-           - Trích xuất toàn bộ bảng.
-           - LOẠI BỎ TOÀN BỘ ký tự '$' ở các cột đơn giá (Price) và thành tiền (Sub Total). Chỉ giữ lại con số.
-        6. Dòng Tổng tiền: Ở dưới cùng của bảng, ghi chữ "Total Amount" ở cột áp chót, và con số tổng tiền (đã bỏ dấu $) phải nằm chính xác ở cột cuối cùng (ngay dưới cột Sub Total).
-        
-        *LƯU Ý QUAN TRỌNG: Bất kỳ nội dung nào (như địa chỉ, tên hàng) có chứa dấu phẩy (,) thì bắt buộc phải bọc nội dung đó trong dấu ngoặc kép ("") để tránh lỗi cấu trúc CSV.`;
+        promptInstruction = `Bạn là một cỗ máy trích xuất dữ liệu thông minh từ PDF/Hình ảnh sang CSV. Tài liệu có thể là Đơn đặt hàng (PO), Hóa đơn (Invoice), Phiếu thu... với cấu trúc thay đổi linh hoạt tùy theo file.
+
+YÊU CẦU TỐI THƯỢNG:
+1. CHỈ TRẢ VỀ dữ liệu CSV thô. TUYỆT ĐỐI KHÔNG có lời chào, KHÔNG giải thích, KHÔNG bọc trong thẻ markdown \`\`\`csv.
+2. LOẠI BỎ toàn bộ ký tự '$', 'VND', hoặc ký hiệu tiền tệ ở tất cả các con số để giữ số thuần túy.
+3. Bất kỳ giá trị nào có chứa dấu phẩy (như địa chỉ, mô tả hàng hóa) BẮT BUỘC phải bọc trong dấu ngoặc kép ("") để không làm vỡ cột CSV.
+
+HÃY PHÂN TÍCH TÀI LIỆU VÀ TRÍCH XUẤT THEO CẤU TRÚC 2 PHẦN LINH HOẠT SAU:
+
+PHẦN 1: THÔNG TIN CHUNG (Metadata ở đầu tài liệu)
+- Xuất theo cấu trúc 2 cột: Trường thông tin,Giá trị
+- Hãy TỰ ĐỘNG QUÉT và trích xuất TẤT CẢ các trường thông tin chung xuất hiện ở nửa trên tài liệu (Ví dụ: Số PO, Ngày lập, Nhà cung cấp, Địa chỉ, Nơi giao, Điều khoản, Người liên hệ, hoặc BẤT KỲ trường thông tin mới nào xuất hiện trong file mà không có trong danh sách này). Liệt kê đầy đủ không bỏ sót trường nào.
+
+[Sau khi hết Phần 1, thêm một dòng trống bằng dấu phẩy: , ]
+
+PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT (Line Items)
+- Hàng đầu tiên: Tự động trích xuất chính xác các Tiêu đề cột thực tế của bảng trong file (Ví dụ: Ln #, Item No, Description, Price, Quantity, Sub Total...).
+- Các hàng tiếp theo: Liệt kê đầy đủ toàn bộ các dòng hàng hóa chi tiết tương ứng.
+- Hàng cuối cùng (Hàng tổng): Hãy đếm số lượng cột của bảng dữ liệu đó. Đặt cụm từ "Tổng cộng (Total Amount)" ở ô áp chót (cột kế cuối), và con số tổng tiền phải nằm chính xác ở ô cuối cùng (để thẳng hàng với cột Thành tiền/Sub Total trên Excel).`;
+
     } else {
-        promptInstruction = "Trích xuất toàn bộ văn bản, giữ nguyên cấu trúc đoạn văn, tiêu đề. Trình bày rõ ràng. Không sử dụng markdown code block.";
+        promptInstruction = "Trích xuất toàn bộ văn bản, giữ nguyên cấu trúc đoạn văn, tiêu đề. Trình bày rõ ràng. KHÔNG sử dụng markdown code block, chỉ trả văn bản thuần.";
     }
     
     const validKeys = PREDEFINED_KEYS.filter(k => k && k.length > 10);
@@ -163,11 +171,16 @@ async function callGeminiAPI(file, targetFormat) {
 
                 if (response.ok) {
                     const data = await response.json();
+                    let cleanText = data.candidates[0].content.parts[0].text;
+                    
+                    // Xử lý dọn dẹp chuỗi dự phòng
+                    cleanText = cleanText.replace(/```csv\n/g, "").replace(/```/g, "").trim();
+                    
                     console.log(`Đã chạy thành công với Model: ${model} | Key: ...${currentKey.slice(-4)}`); 
-                    return data.candidates[0].content.parts[0].text; 
+                    return cleanText; 
                 }
             } catch (e) {
-                // Bỏ qua để thử model khác
+                // Thử model tiếp theo
             }
         }
         
