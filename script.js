@@ -2,16 +2,17 @@
 // 1. KHO DỰ TRỮ API KEY (Dán các Key của bạn vào đây)
 // =====================================================================
 const PREDEFINED_KEYS = [
-    "AQ.Ab8RN6LwkpluunVR60KdIL-WJvQXZhsWBL9NZqSnvMOp769tYw", 
-    "AIzaSyBNcK8CgY0dDI97u9g2Uj6UcG2rn0E43Lo", 
-    "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE",
-    "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"
+    "AQ.Ab8RN6LwkpluunVR60KdIL-WJvQXZhsWBL9NZqSnvMOp769tYw", // Key mới
+    "AIzaSyBNcK8CgY0dDI97u9g2Uj6UcG2rn0E43Lo", // Key cũ 1
+    "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE", // Key cũ 2
+    "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"  // Key cũ 3
 ];
+
 // --- 2. QUẢN LÝ TRẠNG THÁI ---
 let fileQueue = []; 
 let selectedFormat = 'excel';
 let isProcessing = false;
-let currentKeyIndex = 0; // Bộ đếm để xoay vòng Key
+let currentKeyIndex = 0; 
 
 const formats = [
     { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
@@ -20,7 +21,7 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-function toggleModal() { alert("Bạn đang sử dụng chế độ nạp Key tự động. Vui lòng mở mã nguồn file script.js để thêm/sửa Key!"); }
+function toggleModal() { alert("Bạn đang sử dụng chế độ nạp Key tự động. Vui lòng mở file script.js để thêm/sửa Key!"); }
 
 // --- 3. RENDER ĐỊNH DẠNG ---
 const formatContainer = document.getElementById('formatContainer');
@@ -49,7 +50,8 @@ const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 dropZone.addEventListener('click', () => { if(!isProcessing) fileInput.click(); });
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'); });
+// ĐÃ SỬA LỖI SYNTAX Ở DÒNG NÀY:
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
 dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-active'); if (!isProcessing && e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files); });
 fileInput.addEventListener('change', (e) => { if (!isProcessing && e.target.files.length > 0) handleFiles(e.target.files); fileInput.value = ''; });
 
@@ -102,7 +104,7 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - CẬP NHẬT MODEL 2.5 VÀ 3.0
+// 6. LOGIC AI - CẬP NHẬT MODEL VÀ XOAY VÒNG KEY
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -118,14 +120,13 @@ async function callGeminiAPI(file, targetFormat) {
     let promptInstruction = targetFormat === 'excel' ? "Trích xuất bảng biểu thành CSV chuẩn." : "Trích xuất văn bản.";
     
     const validKeys = PREDEFINED_KEYS.filter(k => k && k.length > 10);
-    if(validKeys.length === 0) throw new Error("Chưa có API Key!");
+    if(validKeys.length === 0) throw new Error("Chưa có API Key! Hãy thêm Key vào file script.js.");
 
     let attempts = 0;
     
     while (attempts < validKeys.length) {
         const currentKey = validKeys[currentKeyIndex % validKeys.length];
         
-        // ĐÃ THÊM CÁC MODEL MỚI NHẤT DỰA VÀO ẢNH BẠN CUNG CẤP
         const modelsToTry = [
             'gemini-2.5-flash', 
             'gemini-3-flash', 
@@ -144,21 +145,20 @@ async function callGeminiAPI(file, targetFormat) {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log(`Đã chạy thành công với Model: ${model}`); // In ra Console để bạn dễ theo dõi
+                    console.log(`Đã chạy thành công với Model: ${model} | Key: ...${currentKey.slice(-4)}`); 
                     return data.candidates[0].content.parts[0].text; 
                 }
             } catch (e) {
-                // Ignore lỗi để thử model tiếp theo
+                // Bỏ qua để thử model khác
             }
         }
         
-        // Key hiện tại không chạy được model nào -> Chuyển Key
-        console.warn(`Key thứ ${(currentKeyIndex % validKeys.length) + 1} bị lỗi hoặc hết lượt. Đang chuyển sang Key tiếp theo...`);
+        console.warn(`Key đuôi ...${currentKey.slice(-4)} bị lỗi hoặc hết lượt. Đang đổi Key...`);
         currentKeyIndex++; 
         attempts++;
     }
 
-    throw new Error("TẤT CẢ CÁC API KEY BẠN NHẬP ĐỀU ĐÃ HẾT LƯỢT HOẶC BỊ LỖI. VUI LÒNG BỔ SUNG KEY MỚI!");
+    throw new Error("TẤT CẢ CÁC API KEY ĐỀU BỊ LỖI HOẶC ĐÃ HẾT LƯỢT GỌI! VUI LÒNG CẬP NHẬT KEY MỚI.");
 }
 
 // --- 7. NÚT CHẠY XỬ LÝ ---
