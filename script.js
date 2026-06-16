@@ -46,7 +46,6 @@ function saveApiKeys() {
     const rawText = document.getElementById('apiKeysInput').value;
     const keys = rawText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
     
-    // Đã loại bỏ hoàn toàn localStorage.setItem nhằm xóa sạch vết dấu khi tắt trang
     UI_API_KEYS = keys; 
     updateKeyBadge();
     toggleModal(false);
@@ -55,7 +54,6 @@ function saveApiKeys() {
 
 function updateKeyBadge() {
     const badge = document.getElementById('keyCounterBadge');
-    // Tính tổng số lượng Key (Cố định trong code + Tạm thời ngoài UI)
     const validPredefined = PREDEFINED_KEYS.filter(k => k && k.length > 10).length;
     const totalCount = validPredefined + UI_API_KEYS.length;
     
@@ -154,6 +152,17 @@ function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); r
 // =====================================================================
 // 6. LOGIC AI - GỘP CHUNG 2 NGUỒN KEY (UI LÊN TRƯỚC, CODE CHẠY SAU)
 // =====================================================================
+
+// Hàm sống còn bị lỡ xóa ở phiên bản trước đây:
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
+
 async function callGeminiAPI(file, targetFormat) {
     const base64Data = await fileToBase64(file);
     
