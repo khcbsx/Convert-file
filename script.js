@@ -328,7 +328,7 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
 }
 
 // =====================================================================
-// 7. VÒNG LẶP XỬ LÝ
+// 7. VÒNG LẶP XỬ LÝ (CHIA MẺ 5 FILE & CHỜ 60 GIÂY)
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -336,14 +336,17 @@ processBtn.addEventListener('click', async () => {
 
     isProcessing = true;
     processBtn.disabled = true;
-    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> HỆ THỐNG ĐANG CHẠY...</span>`;
-
+    
     const targetFormat = selectedFormat;
+    let filesProcessedInCurrentBatch = 0; // Bộ đếm số file trong mẻ hiện tại
 
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
         fileQueue[i].status = 'processing';
+        
+        // Hiện thông báo đếm số file trên nút bấm
+        processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ (${filesProcessedInCurrentBatch + 1}/5 CỦA MẺ)...</span>`;
         renderQueue();
 
         try {
@@ -353,25 +356,41 @@ processBtn.addEventListener('click', async () => {
             renderQueue();
             
             triggerAutoDownload(fileQueue[i].file.name, targetFormat, aiGeneratedText);
+            
+            filesProcessedInCurrentBatch++; // Hoàn thành 1 file, tăng bộ đếm
 
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
-                    fileQueue[nextPendingFileIndex].status = 'delaying';
-                    renderQueue();
-                    await new Promise(resolve => setTimeout(resolve, 4000));
-                    fileQueue[nextPendingFileIndex].status = 'pending'; 
+                    
+                    // KIỂM TRA ĐIỀU KIỆN CHIA MẺ
+                    if (filesProcessedInCurrentBatch >= 5) {
+                        // Đã chạy đủ 5 file -> Cho ngủ đông 60 giây để Google Reset Quota Phút
+                        fileQueue[nextPendingFileIndex].status = 'delaying';
+                        processBtn.innerHTML = `<span class="flex items-center justify-center gap-2 text-yellow-400"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ RESET BĂNG THÔNG API...</span>`;
+                        renderQueue();
+                        
+                        await new Promise(resolve => setTimeout(resolve, 60000)); // Delay 60s
+                        
+                        filesProcessedInCurrentBatch = 0; // Reset lại bộ đếm mẻ
+                        fileQueue[nextPendingFileIndex].status = 'pending';
+                    } else {
+                        // Chưa đủ 5 file -> Chờ ngắn 3 giây để an toàn cho dung lượng Token (TPM)
+                        fileQueue[nextPendingFileIndex].status = 'delaying';
+                        renderQueue();
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // Delay 3s
+                        fileQueue[nextPendingFileIndex].status = 'pending'; 
+                    }
                 }
             }
         } catch (error) {
             fileQueue[i].status = 'pending'; 
             renderQueue();
             
-            // Xử lý thông báo lỗi đẹp mắt và yêu cầu nạp Key
             if(error.message === "ALL_DEAD") {
                 showErrorToast();
-                toggleModal(true); // Tự động mở bảng quản lý Key lên
+                toggleModal(true); 
             } else {
                 alert(error.message);
             }
@@ -385,13 +404,14 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI EXCEL CHUẨN
+// 8. ĐÓNG GÓI EXCEL CHUẨN VÀ LÀM SẠCH SỐ THẬP PHÂN
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
         try {
+            // raw: true giữ nguyên ngày tháng ở dạng String, không bị biến thành số
             const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
             const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
             const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
@@ -407,10 +427,25 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
             } else metadataAoA = aoa; 
 
+            // THUẬT TOÁN LÀM SẠCH SỐ THẬP PHÂN (XÓA SỐ 0 DƯ THỪA)
+            // Trong bảng chi tiết từ trái sang: Cột K (Price) là index 7, Cột L (Quantity) là index 8, Cột N (Sub Total) là index 10
+            for (let i = 0; i < tableAoA.length; i++) {
+                [7, 8, 10].forEach(colIdx => {
+                    if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
+                        let val = tableAoA[i][colIdx].toString().trim();
+                        // Chuyển chuỗi "70.4100" thành số Number 70.41 thuần túy
+                        if (!isNaN(parseFloat(val)) && !val.includes("/")) { // Không parse ngày tháng
+                            tableAoA[i][colIdx] = parseFloat(val);
+                        }
+                    }
+                });
+            }
+
             const finalAoA = [];
             const maxRows = Math.max(metadataAoA.length, tableAoA.length);
             for (let i = 0; i < maxRows; i++) {
                 const row = [];
+                // Bố cục song song
                 if (i < metadataAoA.length) { row.push(metadataAoA[i][0] || ""); row.push(metadataAoA[i][1] || ""); } else row.push("", "");
                 row.push("");
                 if (i < tableAoA.length) row.push(...tableAoA[i]);
@@ -444,9 +479,15 @@ function triggerAutoDownload(originalName, format, fileContent) {
                             border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
                             alignment: { vertical: "center", wrapText: true }
                         };
+                        // Căn phải (right) cho các cột Số liệu (Price, Quantity, Sub Total) để đẹp mắt
+                        if (C === 10 || C === 11 || C === 13) {
+                            cellStyle.alignment.horizontal = "right";
+                        }
+                        
                         if (isHeader) {
                             cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
                             cellStyle.font = { bold: true, color: { rgb: "000000" } };
+                            cellStyle.alignment.horizontal = "center"; // Tiêu đề căn giữa
                         }
                         finalWs[cell_ref].s = cellStyle;
                     }
