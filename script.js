@@ -2,10 +2,11 @@
 // 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Giữ nguyên khi F5/Tắt trang)
 // =====================================================================
 const PREDEFINED_KEYS = [
-    "AQ.Ab8RN6LwkpluunVR60KdIL-WJvQXZhsWBL9NZqSnvMOp769tYw", // Key cố định số 1
-    "AIzaSyBNcK8CgY0dDI97u9g2Uj6UcG2rn0E43Lo", // Key cố định số 2
-    "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE", // Key cố định số 3
-    "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"  // Key cố định số 4
+    "AQ.Ab8RN6JdCqKu_7Nh8fYm2ULK4AvlfB5Yv4sB2RIudQlQh54tbg", // Key cố định số 1
+    "AQ.Ab8RN6IKmnWc1UJ5OMdiotcqGReTmebAjP_zS5hCgZlo0sHofQ", // Key cố định số 2
+    "AQ.Ab8RN6Icf5WtVFOHcq3L9OqMT6qCDKW2rh78bqdrLbCJxc1qFQ", // Key cố định số 3
+    "AQ.Ab8RN6J0a1BvYVEpcH6UKwUZoMIKrrBAhUGiuizAKBNpPEXH3Q",// Key cố định số 4
+    "AQ.Ab8RN6JtHOneEVFsN89zu9MG6uC-Oyyq6vPJDxgqjfQtbQt0vg"// Key cố định số 5
 ];
 
 // Mảng chứa các Key nhập từ giao diện (Chỉ lưu trong RAM, F5 sẽ BỊ XÓA TRẮNG)
