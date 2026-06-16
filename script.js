@@ -276,7 +276,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (SỬA LỖI OAN SAI KEY)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO TOÀN 100% NGUYÊN BẢN & FIX LỖI UI)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -320,9 +320,9 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash']; // Chỉ dùng 2 model chuẩn
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
         
-        let isKeyDead = true; // Mặc định nghi ngờ
+        let isKeyDead = true; // MẶC ĐỊNH: Nghi ngờ Key này đã chết
 
         for (let model of modelsToTry) {
             try {
@@ -335,25 +335,33 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
-                    currentKeyObj.status = 'good';
+                    currentKeyObj.status = 'good'; // Thành công -> Xóa án
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
-                } else if (response.status === 429 || response.status >= 500) {
-                    isKeyDead = false; // Key đang quá tải/Rate Limit, tha bổng không gạch đỏ
+                } 
+                else if (response.status === 429 || response.status >= 500) {
+                    // CHỈ tha bổng nếu Google báo quá tải (429) hoặc sập server (500)
+                    isKeyDead = false; 
+                    break; // Thoát vòng lặp model, nhường việc cho Key tiếp theo
                 }
+                // Các lỗi như 404, 400, 403 đi qua đây, isKeyDead vẫn là TRUE
             } catch (e) {
-                isKeyDead = false; // Lỗi rớt mạng, không gạch đỏ
+                // Lỗi ERR_FAILED chui vào đây. isKeyDead vẫn giữ nguyên là TRUE
             } 
         }
         
-        // Chỉ kết án tử hình Key nếu thực sự bị báo 403, 400
-        if (isKeyDead) currentKeyObj.status = 'error';
+        // KIỂM TRA LẠI: Nếu vẫn mang án tử -> Gạch đỏ ngay lập tức!
+        if (isKeyDead) {
+            currentKeyObj.status = 'error';
+        }
         
-        updateKeyBadge(); renderKeyDashboard();
+        updateKeyBadge(); 
+        renderKeyDashboard();
+        
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("Tạm thời quá tải Server. Hệ thống sẽ tự thử lại hoặc bạn hãy chờ vài giây!");
+    throw new Error("Quá tải hoặc tất cả API Key đều đã hỏng!");
 }
 
 // =====================================================================
@@ -396,21 +404,26 @@ YÊU CẦU TỐI THƯỢNG:
                     currentKeyObj.status = 'good'; 
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
-                } else if (response.status === 429 || response.status >= 500) {
+                } 
+                else if (response.status === 429 || response.status >= 500) {
                     isKeyDead = false; 
+                    break;
                 }
             } catch (e) {
-                isKeyDead = false; 
             } 
         }
         
-        if (isKeyDead) currentKeyObj.status = 'error';
+        if (isKeyDead) {
+            currentKeyObj.status = 'error';
+        }
         
-        updateKeyBadge(); renderKeyDashboard();
+        updateKeyBadge(); 
+        renderKeyDashboard();
+        
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("Tạm thời quá tải Server. Hệ thống sẽ tự thử lại hoặc bạn hãy chờ vài giây!");
+    throw new Error("Quá tải hoặc tất cả API Key đều đã hỏng!");
 }
 
 // =====================================================================
