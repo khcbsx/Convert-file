@@ -1,5 +1,5 @@
 // =====================================================================
-// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (ĐÃ FIX LỖI 404 MODEL)
+// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (TỐI ƯU 100% QUOTA)
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
@@ -12,27 +12,22 @@ const PREDEFINED_KEYS = [
 let GLOBAL_KEYS_DB = [];
 
 window.onload = () => {
-    // Nạp Key vào DB
+    // Nạp Key vào DB, MẶC ĐỊNH MÀU XANH TẤT CẢ (Sẵn sàng) để tiết kiệm lượt gọi
     PREDEFINED_KEYS.forEach((k, index) => {
-        if(k && k.length > 10) GLOBAL_KEYS_DB.push({ id: index + 1, key: k, source: "Cố định", status: "pending" });
+        if(k && k.length > 10) GLOBAL_KEYS_DB.push({ id: index + 1, key: k, source: "Cố định", status: "good" });
     });
     updateKeyBadge();
     renderKeyDashboard();
     
-    // Tính năng mới: Tự động quét kiểm tra sức khỏe ngầm ngay khi tải trang (F5)
-    testAllKeysSilently();
+    // ĐÃ XÓA: Lệnh tự động test Key ngầm lúc tải trang để không tốn Quota
 };
 
 function updateKeyBadge() {
     const badge = document.getElementById('keyCounterBadge');
     const goodCount = GLOBAL_KEYS_DB.filter(k => k.status === 'good').length;
-    const pendingCount = GLOBAL_KEYS_DB.filter(k => k.status === 'pending').length;
     
-    if (pendingCount > 0 && goodCount === 0) {
-        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (ĐANG QUÉT...)`;
-        badge.className = "text-[10px] cursor-pointer hover:bg-gray-800 transition-colors font-mono bg-gray-900 text-gray-400 px-3 py-1.5 rounded-md border border-gray-600";
-    } else if (goodCount > 0) {
-        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (${goodCount} ĐANG SỐNG)`;
+    if (goodCount > 0) {
+        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (${goodCount} SẴN SÀNG)`;
         badge.className = "text-[10px] cursor-pointer hover:bg-emerald-800/40 transition-colors font-mono bg-emerald-900/20 text-emerald-400 px-3 py-1.5 rounded-md border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
     } else {
         badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (CHẾT HẾT)`;
@@ -40,12 +35,11 @@ function updateKeyBadge() {
     }
 }
 
-// HÀM TEST THÔNG MINH (Dò qua nhiều Model để tránh lỗi 404)
+// HÀM TEST KHI NGƯỜI DÙNG BẤM NÚT "KIỂM TRA ĐỒNG LOẠT"
 async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    // Chỉ dùng 2 model chuẩn và ổn định nhất, bỏ các model ảo gây lỗi 404
     const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
     let isAlive = false;
 
@@ -57,14 +51,10 @@ async function pingGeminiKey(keyObj) {
                 body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
             });
             
-            // ĐIỂM CỐT LÕI: OK (200) hoặc 429 (Rate Limit) hoặc 500+ (Server Busy) đều chứng tỏ KEY HỢP LỆ!
             if (res.ok || res.status === 429 || res.status >= 500) {
-                isAlive = true;
-                break; 
+                isAlive = true; break; 
             }
-        } catch (e) {
-            // Lỗi mạng, tiếp tục dò model khác
-        }
+        } catch (e) { }
     }
     
     keyObj.status = isAlive ? 'good' : 'error';
@@ -72,15 +62,13 @@ async function pingGeminiKey(keyObj) {
     renderKeyDashboard();
 }
 
-// Chạy test ngầm TUẦN TỰ để tránh ăn gậy 429 của Google
 async function testAllKeysSilently() {
     for (let k of GLOBAL_KEYS_DB) {
         await pingGeminiKey(k);
-        await new Promise(resolve => setTimeout(resolve, 800)); // Nghỉ 0.8s giữa mỗi lần gõ cửa
+        await new Promise(resolve => setTimeout(resolve, 800)); 
     }
 }
 
-// Chạy test khi bấm nút
 async function testAllKeys() {
     const btn = document.getElementById('btnTestAll');
     btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
@@ -94,9 +82,8 @@ function renderKeyDashboard() {
     
     GLOBAL_KEYS_DB.forEach(k => {
         let statusUI = '';
-        if (k.status === 'pending') statusUI = `<span class="flex items-center gap-1.5 text-gray-400"><div class="w-2 h-2 rounded-full bg-gray-500"></div> Chờ quét...</span>`;
-        else if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò...</span>`;
-        else if (k.status === 'good') statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động tốt</span>`;
+        if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò...</span>`;
+        else if (k.status === 'good') statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động / Sẵn sàng</span>`;
         else statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi</span>`;
 
         const maskedKey = k.key.substring(0, 8) + '••••••••' + k.key.substring(k.key.length - 4);
@@ -125,9 +112,9 @@ function saveApiKeys() {
 
     let startId = GLOBAL_KEYS_DB.length + 1;
     keys.forEach(k => {
-        const newKeyObj = { id: startId++, key: k, source: "Mới nạp", status: "pending" };
+        // Vừa nạp vào cũng mặc định cho Xanh luôn, không test tự động nữa
+        const newKeyObj = { id: startId++, key: k, source: "Mới nạp", status: "good" };
         GLOBAL_KEYS_DB.push(newKeyObj);
-        pingGeminiKey(newKeyObj); // Tự động test luôn key vừa nhập
     });
 
     document.getElementById('apiKeysInput').value = '';
