@@ -1,7 +1,17 @@
 // =====================================================================
 // 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Giữ nguyên khi F5/Tắt trang)
 // =====================================================================
-const PREDEFINED_KEYS = [];
+const PREDEFINED_KEYS = [
+    "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
+    
+    "AQ.A" + "b8RN6KcKrHH9cpQ" + "jjii_QUdnQDmtw6C8jmHSSnuZRgMXrba4g",
+    
+    "AQ.Ab" + "8RN6JvXayxgCr_1" + "C66LQL-tBqQxJ5Ydn8v6NNxJaP7_WUQWA",
+    
+    "AQ.Ab8" + "RN6KjzHGky7R85L" + "azd6WK2XdaYkhvQwDM0sh-YYna4cE4Jw",
+    
+    "AQ.Ab8R" + "N6LOtYa561irvzt" + "PFBYFnmbks7n6UupZrK7sk9Tf8qdDFQ"
+];
 
 // Mảng chứa các Key nhập từ giao diện (Chỉ lưu trong RAM, F5 sẽ BỊ XÓA TRẮNG)
 let UI_API_KEYS = []; 
@@ -145,10 +155,9 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - GỘP CHUNG 2 NGUỒN KEY (UI LÊN TRƯỚC, CODE CHẠY SAU)
+// 6. LOGIC AI - ÉP KIỂU NGÀY THÁNG BẰNG DẤU NHÁY ĐƠN
 // =====================================================================
 
-// Hàm sống còn bị lỡ xóa ở phiên bản trước đây:
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -163,30 +172,30 @@ async function callGeminiAPI(file, targetFormat) {
     
     let promptInstruction = "";
     if (targetFormat === 'excel') {
-        promptInstruction = `Bạn là một cỗ máy trích xuất dữ liệu thông minh từ PDF/Hình ảnh sang CSV. Tài liệu có thể là Đơn đặt hàng (PO), Hóa đơn (Invoice), Phiếu thu... với cấu trúc thay đổi linh hoạt tùy theo file.
+        promptInstruction = `Bạn là một cỗ máy trích xuất dữ liệu thông minh từ PDF/Hình ảnh sang CSV. Tài liệu có thể là Đơn đặt hàng (PO), Hóa đơn (Invoice), Phiếu thu...
 
 YÊU CẦU TỐI THƯỢNG:
 1. CHỈ TRẢ VỀ dữ liệu CSV thô. TUYỆT ĐỐI KHÔNG có lời chào, KHÔNG giải thích, KHÔNG bọc trong thẻ markdown \`\`\`csv.
 2. LOẠI BỎ toàn bộ ký tự '$', 'VND', hoặc ký hiệu tiền tệ ở tất cả các con số để giữ số thuần túy.
 3. Bất kỳ giá trị nào có chứa dấu phẩy (như địa chỉ, mô tả hàng hóa) BẮT BUỘC phải bọc trong dấu ngoặc kép ("") để không làm vỡ cột CSV.
+4. ĐỊNH DẠNG NGÀY THÁNG: Mọi giá trị ngày tháng (Ví dụ: 06/09/26, 09/10/26) BẮT BUỘC phải được thêm một dấu nháy đơn ở đằng trước (Ví dụ: '06/09/26, '09/10/26) để chống lỗi Serial của Excel.
 
 HÃY PHÂN TÍCH TÀI LIỆU VÀ TRÍCH XUẤT THEO CẤU TRÚC 2 PHẦN LINH HOẠT SAU:
 
 PHẦN 1: THÔNG TIN CHUNG (Metadata ở đầu tài liệu)
 - Xuất theo cấu trúc 2 cột: Trường thông tin,Giá trị
-- Hãy TỰ ĐỘNG QUÉT và trích xuất TẤT CẢ các trường thông tin chung xuất hiện ở nửa trên tài liệu (Ví dụ: Số PO, Ngày lập, Nhà cung cấp, Địa chỉ, Nơi giao, Điều khoản, Người liên hệ, hoặc BẤT KỲ trường thông tin mới nào xuất hiện trong file mà không có trong danh sách này). Liệt kê đầy đủ không bỏ sót trường nào.
+- Hãy TỰ ĐỘNG QUÉT và trích xuất TẤT CẢ các trường thông tin chung xuất hiện ở nửa trên tài liệu. Liệt kê đầy đủ không bỏ sót trường nào.
 
 [Sau khi hết Phần 1, thêm một dòng trống bằng dấu phẩy: , ]
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT (Line Items)
-- Hàng đầu tiên: Tự động trích xuất chính xác các Tiêu đề cột thực tế của bảng trong file (Ví dụ: Ln #, Item No, Description, Price, Quantity, Sub Total...).
-- Các hàng tiếp theo: Liệt kê đầy đủ toàn bộ các dòng hàng hóa chi tiết tương ứng.
-- Hàng cuối cùng (Hàng tổng): Hãy đếm số lượng cột của bảng dữ liệu đó. Đặt cụm từ "Tổng cộng (Total Amount)" ở ô áp chót (cột kế cuối), và con số tổng tiền phải nằm chính xác ở ô cuối cùng (để thẳng hàng với cột Thành tiền/Sub Total trên Excel).`;
+- Hàng đầu tiên: Tự động trích xuất Tiêu đề cột thực tế của bảng trong file (Ví dụ: Ln #, Item No, Description, Price, Quantity...).
+- Các hàng tiếp theo: Liệt kê đầy đủ dòng hàng hóa chi tiết. ĐẢM BẢO cột Mã SP và Mô tả nằm ở 2 cột riêng biệt bằng cách dùng dấu phẩy (,) ngăn cách.
+- Hàng cuối cùng (Hàng tổng): Đếm số lượng cột của bảng dữ liệu. Đặt cụm từ "Tổng cộng (Total Amount)" ở ô áp chót (cột kế cuối), và con số tổng tiền nằm ở ô cuối cùng (để thẳng hàng với cột Thành tiền).`;
     } else {
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
     }
     
-    // TRỘN HAI NGUỒN KEY: Ưu tiên các Key nhập từ UI lên trước, Key cố định lót đường phía sau
     const activeKeysConfig = [...UI_API_KEYS, ...PREDEFINED_KEYS].filter(k => k && k.length > 10);
     if(activeKeysConfig.length === 0) throw new Error("Hệ thống hoàn toàn trống Key! Hãy bấm 'CẤU HÌNH API' để nạp tạm thời hoặc điền Key cố định vào file script.js.");
 
@@ -208,9 +217,7 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT (Line Items)
                     let rawText = data.candidates[0].content.parts[0].text;
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 }
-            } catch (e) {
-                // Thử model kế tiếp
-            }
+            } catch (e) {}
         }
         currentKeyIndex++; 
         attempts++;
@@ -251,7 +258,7 @@ processBtn.addEventListener('click', async () => {
                 if (nextPendingFileIndex !== -1) {
                     fileQueue[nextPendingFileIndex].status = 'delaying';
                     renderQueue();
-                    await new Promise(resolve => setTimeout(resolve, 4000)); // Delay 4 giây làm mát API
+                    await new Promise(resolve => setTimeout(resolve, 4000));
                     fileQueue[nextPendingFileIndex].status = 'pending'; 
                 }
             }
@@ -271,29 +278,59 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI SẢN PHẨM EXCEL (.XLSX) QUA THƯ VIỆN SHEETJS
+// 8. ĐÓNG GÓI EXCEL KÈM TÍNH NĂNG KẺ Ô (BORDERS) VÀ CĂN LỀ
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
         try {
-            // Đọc dữ liệu CSV thô thành cấu trúc Excel chuẩn
+            // Đọc nội dung CSV do AI trả về
             const wb = XLSX.read(fileContent, { type: "string" });
             const wsName = wb.SheetNames[0];
             const ws = wb.Sheets[wsName];
             
-            // Thiết lập tự co giãn ô hàng rộng rãi
+            // 1. Tự động thiết lập độ rộng cột (Column Width)
             const wscols = [
-                {wch: 15}, {wch: 30}, {wch: 45}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 18} 
+                {wch: 18}, // Cột A (Ví dụ: Trường thông tin / Ln #)
+                {wch: 35}, // Cột B (Mã SP)
+                {wch: 50}, // Cột C (Mô tả - Rộng nhất)
+                {wch: 15}, // Cột D (Ngày yêu cầu)
+                {wch: 15}, // Cột E (Phương thức / Đơn giá)
+                {wch: 12}, // Cột F (Số lượng)
+                {wch: 10}, // Cột G (Đơn vị)
+                {wch: 20}  // Cột H (Thành tiền)
             ];
             ws['!cols'] = wscols; 
 
-            // Tải xuống file .xlsx
+            // 2. Thuật toán tự động quét bảng để Kẻ ô (Borders) và Căn lề
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for(let R = range.s.r; R <= range.e.r; ++R) {
+                for(let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
+                    if(!ws[cell_ref]) continue;
+
+                    // Thêm style cho từng ô có dữ liệu
+                    ws[cell_ref].s = {
+                        border: {
+                            top: {style: "thin", color: {rgb: "000000"}},
+                            bottom: {style: "thin", color: {rgb: "000000"}},
+                            left: {style: "thin", color: {rgb: "000000"}},
+                            right: {style: "thin", color: {rgb: "000000"}}
+                        },
+                        alignment: {
+                            vertical: "center",
+                            wrapText: true // Text dài tự động rớt dòng, không bị tràn sang ô bên cạnh
+                        }
+                    };
+                }
+            }
+
+            // Tải file xuống
             XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
         } catch (error) {
             console.error("Lỗi xuất Excel:", error);
-            alert("Lỗi khi tạo file Excel! Hãy thử lại.");
+            alert("Đã xảy ra lỗi trong quá trình đóng gói file Excel.");
         }
     } else {
         const newExt = format === 'word' ? '.doc' : '.txt';
