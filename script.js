@@ -1,13 +1,7 @@
 // =====================================================================
 // 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Giữ nguyên khi F5/Tắt trang)
 // =====================================================================
-const PREDEFINED_KEYS = [
-    "AQ.Ab8RN6JdCqKu_7Nh8fYm2ULK4AvlfB5Yv4sB2RIudQlQh54tbg", // Key cố định số 1
-    "AQ.Ab8RN6IKmnWc1UJ5OMdiotcqGReTmebAjP_zS5hCgZlo0sHofQ", // Key cố định số 2
-    "AQ.Ab8RN6Icf5WtVFOHcq3L9OqMT6qCDKW2rh78bqdrLbCJxc1qFQ", // Key cố định số 3
-    "AQ.Ab8RN6J0a1BvYVEpcH6UKwUZoMIKrrBAhUGiuizAKBNpPEXH3Q",// Key cố định số 4
-    "AQ.Ab8RN6JtHOneEVFsN89zu9MG6uC-Oyyq6vPJDxgqjfQtbQt0vg"// Key cố định số 5
-];
+const PREDEFINED_KEYS = [];
 
 // Mảng chứa các Key nhập từ giao diện (Chỉ lưu trong RAM, F5 sẽ BỊ XÓA TRẮNG)
 let UI_API_KEYS = []; 
@@ -283,17 +277,24 @@ function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
-        const ws = XLSX.utils.csv_to_sheet(fileContent);
-        
-        // Thiết lập tự co giãn ô hàng rộng rãi, dữ liệu nằm gọn gàng
-        const wscols = [
-            {wch: 15}, {wch: 30}, {wch: 45}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 18} 
-        ];
-        ws['!cols'] = wscols; 
+        try {
+            // Đọc dữ liệu CSV thô thành cấu trúc Excel chuẩn
+            const wb = XLSX.read(fileContent, { type: "string" });
+            const wsName = wb.SheetNames[0];
+            const ws = wb.Sheets[wsName];
+            
+            // Thiết lập tự co giãn ô hàng rộng rãi
+            const wscols = [
+                {wch: 15}, {wch: 30}, {wch: 45}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 18} 
+            ];
+            ws['!cols'] = wscols; 
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu Trích xuất");
-        XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
+            // Tải xuống file .xlsx
+            XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
+        } catch (error) {
+            console.error("Lỗi xuất Excel:", error);
+            alert("Lỗi khi tạo file Excel! Hãy thử lại.");
+        }
     } else {
         const newExt = format === 'word' ? '.doc' : '.txt';
         const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
