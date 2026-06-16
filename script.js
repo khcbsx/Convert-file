@@ -326,15 +326,6 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
 - Điền đầy đủ các dòng. Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để trống giữa 2 dấu phẩy. Dữ liệu ngày tháng phải cho vào đúng cột "Req. Due Date".
 - DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 dấu phẩy ở trước để chữ Total Amount rơi vào cột J:
 ,,,,,,,,,Total Amount,[Số tiền tổng]`;
-    } 
-    else if (targetFormat === 'word') {
-        promptInstruction = `Bạn là chuyên gia số hóa tài liệu siêu việt.
-YÊU CẦU TỐI THƯỢNG:
-1. Đọc và trích xuất TOÀN BỘ nội dung văn bản từ PDF/Hình ảnh này.
-2. Giữ nguyên tối đa cấu trúc, bố cục, các thẻ tiêu đề (Heading), đoạn văn, danh sách và bảng biểu.
-3. TRẢ VỀ DƯỚI DẠNG MÃ HTML THUẦN TÚY (Chỉ dùng các thẻ cơ bản như <h1>, <h2>, <p>, <ul>, <li>, <table>, <tr>, <td>...).
-4. Đảm bảo bảng <table> có thuộc tính border="1" style="border-collapse: collapse; width: 100%;".
-5. TUYỆT ĐỐI KHÔNG bọc trong markdown (không dùng \`\`\`html), KHÔNG giải thích, CHỈ XUẤT RA mã HTML.`;
     } else {
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
     }
@@ -366,7 +357,7 @@ YÊU CẦU TỐI THƯỢNG:
                     let rawText = data.candidates[0].content.parts[0].text;
                     currentKeyObj.status = 'good'; // Chạy mượt -> Đánh dấu tốt
                     updateKeyBadge(); renderKeyDashboard();
-                    return rawText.replace(/```(csv|html)\n/g, "").replace(/```/g, "").trim();
+                    return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 }
             } catch (e) {} // Bỏ qua thử model khác
         }
@@ -483,11 +474,13 @@ function triggerAutoDownload(originalName, format, fileContent) {
             } else metadataAoA = aoa; 
 
             // THUẬT TOÁN LÀM SẠCH SỐ THẬP PHÂN (XÓA SỐ 0 DƯ THỪA)
+            // Trong bảng chi tiết từ trái sang: Cột K (Price) là index 7, Cột L (Quantity) là index 8, Cột N (Sub Total) là index 10
             for (let i = 0; i < tableAoA.length; i++) {
                 [7, 8, 10].forEach(colIdx => {
                     if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
                         let val = tableAoA[i][colIdx].toString().trim();
-                        if (!isNaN(parseFloat(val)) && !val.includes("/")) { 
+                        // Chuyển chuỗi "70.4100" thành số Number 70.41 thuần túy
+                        if (!isNaN(parseFloat(val)) && !val.includes("/")) { // Không parse ngày tháng
                             tableAoA[i][colIdx] = parseFloat(val);
                         }
                     }
@@ -532,7 +525,7 @@ function triggerAutoDownload(originalName, format, fileContent) {
                             border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
                             alignment: { vertical: "center", wrapText: true }
                         };
-                        // Căn phải (right) cho các cột Số liệu
+                        // Căn phải (right) cho các cột Số liệu (Price, Quantity, Sub Total) để đẹp mắt
                         if (C === 10 || C === 11 || C === 13) {
                             cellStyle.alignment.horizontal = "right";
                         }
@@ -540,7 +533,7 @@ function triggerAutoDownload(originalName, format, fileContent) {
                         if (isHeader) {
                             cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
                             cellStyle.font = { bold: true, color: { rgb: "000000" } };
-                            cellStyle.alignment.horizontal = "center"; 
+                            cellStyle.alignment.horizontal = "center"; // Tiêu đề căn giữa
                         }
                         finalWs[cell_ref].s = cellStyle;
                     }
@@ -554,43 +547,8 @@ function triggerAutoDownload(originalName, format, fileContent) {
         } catch (error) {
             console.error(error); alert("Đã xảy ra lỗi đóng gói Excel.");
         }
-    } 
-    // ==========================================
-    // NHÁNH MỚI: ĐÓNG GÓI WORD CHUẨN MS OFFICE
-    // ==========================================
-    else if (format === 'word') {
-        try {
-            // Bao bọc mã HTML trả về từ AI vào bộ khung XML chuẩn của Microsoft Word
-            const wordHeaders = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head><meta charset='utf-8'><title>Export HTML to Word</title>
-            <style>
-                body { font-family: 'Times New Roman', serif; font-size: 12pt; }
-                table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 10px; }
-                th, td { border: 1px solid black; padding: 5px; text-align: left; }
-                th { background-color: #f2f2f2; font-weight: bold; }
-            </style>
-            </head><body>`;
-            const wordFooters = "</body></html>";
-            
-            const fullWordContent = wordHeaders + fileContent + wordFooters;
-
-            // Ép kiểu Blob thành định dạng file Word (.doc)
-            const blob = new Blob(['\ufeff', fullWordContent], { type: 'application/msword' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${baseName}_converted.doc`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error(error); alert("Đã xảy ra lỗi đóng gói Word.");
-        }
-    } 
-    // Fallback cho các định dạng khác
-    else {
-        const newExt = format === 'ppt' ? '.txt' : '.txt';
+    } else {
+        const newExt = format === 'word' ? '.doc' : '.txt';
         const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fileContent], { type: "text/plain;charset=utf-8" });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = `${baseName}_converted${newExt}`;
