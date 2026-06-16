@@ -160,28 +160,69 @@ let currentKeyIndex = 0;
 const formats = [
     { id: 'excel', name: 'Microsoft Excel', desc: 'EXTRACT DATA', color: 'text-emerald-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm0 16H8v-2h6v2zm2-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
     { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
+    { id: 'ppt', name: 'PowerPoint', desc: 'GENERATE SLIDES', color: 'text-orange-400', icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-3 5-3v6zm7 0l-5-3 5-3v6z"/>' },
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
+
+// Khởi tạo mảng lưu các định dạng được phép hiển thị
+let allowedFormats = ['excel', 'word', 'ppt', 'pdf'];
+
+// HÀM MỚI: BỘ LỌC GIAO DIỆN ĐỘNG
+function checkFileTypeAndUpdateUI() {
+    const pendingFiles = fileQueue.filter(f => f.status === 'pending');
+    
+    if (pendingFiles.length === 0) {
+        // Nếu không có file nào đang chờ, hiện lại tất cả các nút
+        allowedFormats = ['excel', 'word', 'ppt', 'pdf']; 
+    } else {
+        // Lấy file đầu tiên trong hàng đợi làm chuẩn để thiết lập UI
+        const firstFileName = pendingFiles[0].file.name.toLowerCase();
+        
+        if (firstFileName.endsWith('.pdf') || firstFileName.match(/\.(jpg|jpeg|png)$/)) {
+            allowedFormats = ['word', 'excel'];
+            if (!allowedFormats.includes(selectedFormat)) selectedFormat = 'excel';
+        } 
+        else if (firstFileName.endsWith('.docx') || firstFileName.endsWith('.doc')) {
+            allowedFormats = ['excel'];
+            selectedFormat = 'excel'; // Ép người dùng chỉ được chọn Excel
+        } 
+        else if (firstFileName.endsWith('.xlsx') || firstFileName.endsWith('.xls') || firstFileName.endsWith('.csv')) {
+            allowedFormats = ['word'];
+            selectedFormat = 'word'; // Ép người dùng chỉ được chọn Word
+        }
+    }
+    renderFormats();
+}
 
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
     formats.forEach(format => {
-        const isSelected = selectedFormat === format.id;
-        const baseClass = isSelected ? 'flex items-center justify-between p-3 text-left rounded-xl bg-white text-black shadow-lg cursor-pointer transition-transform scale-[1.02]' : 'flex items-center gap-3 p-3 text-left rounded-xl border border-gray-700/50 bg-[#161224]/80 hover:bg-[#201a33] cursor-pointer text-gray-300';
-        const iconBgClass = isSelected ? 'bg-[#213547] text-white' : `bg-white/5 ${format.color}`;
-        formatContainer.insertAdjacentHTML('beforeend', `
-            <div class="${baseClass}" onclick="selectFormat('${format.id}')">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg flex items-center justify-center ${iconBgClass}"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">${format.icon}</svg></div>
-                    <div><div class="${isSelected ? 'font-bold' : 'font-semibold'} text-sm">${format.name}</div><div class="text-[9px] text-gray-500 tracking-widest mt-0.5">${format.desc}</div></div>
+        // CHỈ RENDER các nút nằm trong danh sách cho phép
+        if (allowedFormats.includes(format.id)) {
+            const isSelected = selectedFormat === format.id;
+            const baseClass = isSelected ? 'flex items-center justify-between p-3 text-left rounded-xl bg-white text-black shadow-lg cursor-pointer transition-transform scale-[1.02]' : 'flex items-center gap-3 p-3 text-left rounded-xl border border-gray-700/50 bg-[#161224]/80 hover:bg-[#201a33] cursor-pointer text-gray-300';
+            const iconBgClass = isSelected ? 'bg-[#213547] text-white' : `bg-white/5 ${format.color}`;
+            formatContainer.insertAdjacentHTML('beforeend', `
+                <div class="${baseClass}" onclick="selectFormat('${format.id}')">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center ${iconBgClass}"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">${format.icon}</svg></div>
+                        <div><div class="${isSelected ? 'font-bold' : 'font-semibold'} text-sm">${format.name}</div><div class="text-[9px] text-gray-500 tracking-widest mt-0.5">${format.desc}</div></div>
+                    </div>
+                    ${isSelected ? '<svg class="w-5 h-5 text-emerald-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
                 </div>
-                ${isSelected ? '<svg class="w-5 h-5 text-emerald-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
-            </div>
-        `);
+            `);
+        }
     });
 }
-function selectFormat(id) { if(!isProcessing) { selectedFormat = id; renderFormats(); } }
+
+function selectFormat(id) { 
+    // Chặn người dùng cố tình click vào định dạng không được phép
+    if(!isProcessing && allowedFormats.includes(id)) { 
+        selectedFormat = id; 
+        renderFormats(); 
+    } 
+}
 renderFormats();
 
 const dropZone = document.getElementById('dropZone');
@@ -194,6 +235,7 @@ fileInput.addEventListener('change', (e) => { if (!isProcessing && e.target.file
 
 function handleFiles(files) {
     Array.from(files).forEach(f => fileQueue.push({ id: Date.now() + Math.random(), file: f, status: 'pending', formatTarget: null }));
+    checkFileTypeAndUpdateUI(); // Tự động quét đuôi file và kích hoạt Bộ lọc Giao diện
     renderQueue();
 }
 
@@ -240,7 +282,11 @@ function renderQueue() {
         }
     }
 }
-function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
+function removeFile(id) { 
+    fileQueue = fileQueue.filter(item => item.id != id); 
+    checkFileTypeAndUpdateUI(); // Nếu người dùng xóa file, phải check lại xem cần mở khóa giao diện không
+    renderQueue(); 
+}
 
 // =====================================================================
 // 6. LOGIC AI - THÔNG MINH ĐÁNH DẤU KEY LỖI
