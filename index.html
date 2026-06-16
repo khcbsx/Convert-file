@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bộ xử lý Tài liệu Đa năng</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -26,10 +25,14 @@
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                 PROFESSIONAL AI WORK SUITE
             </div>
-            <button onclick="toggleModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-600/50 bg-gray-900/60 hover:bg-gray-800/80 backdrop-blur-md shadow-lg transition-colors text-xs font-bold text-gray-300">
-                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                CẤU HÌNH API
-            </button>
+            
+            <div class="flex items-center gap-3">
+                <span id="keyCounterBadge" class="text-[10px] text-gray-400 font-mono bg-gray-800/50 px-2 py-1 rounded-md border border-gray-700/50">Đã nạp: 0 Key</span>
+                <button onclick="toggleModal(true)" class="flex items-center gap-2 px-4 py-2 rounded-xl border border-purple-500/50 bg-purple-900/20 hover:bg-purple-800/40 backdrop-blur-md shadow-[0_0_10px_rgba(168,85,247,0.2)] transition-all text-xs font-bold text-purple-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    CẤU HÌNH API
+                </button>
+            </div>
         </div>
 
         <div class="text-center mb-10">
@@ -79,6 +82,33 @@
                     </div>
                 </div>
                 <div id="completedList" class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="apiModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-[#1c1627] border border-gray-700 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col transform scale-95 transition-transform duration-300" id="apiModalContent">
+            <div class="flex justify-between items-center p-6 border-b border-gray-700/50 bg-[#231b32]">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Nạp Gemini API Key</h2>
+                    <p class="text-xs text-gray-400 mt-1">Dán danh sách các Key của bạn vào đây. App sẽ tự động xoay vòng khi có Key hết Quota.</p>
+                </div>
+                <button onclick="toggleModal(false)" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <textarea id="apiKeysInput" rows="6" class="w-full bg-[#130f1c] border border-gray-600 rounded-xl p-4 text-xs text-green-400 font-mono focus:border-purple-500 outline-none custom-scrollbar" placeholder="Dán các Key vào đây...
+Ví dụ:
+AQ.Ab8RN6LwkpluunVR...
+AIzaSyBNcK8CgY0dDI9...
+AIzaSyDnQWNVyC8jBAO..."></textarea>
+            </div>
+            <div class="p-6 border-t border-gray-700/50 bg-[#181322] flex justify-end gap-3">
+                <button onclick="toggleModal(false)" class="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">ĐÓNG</button>
+                <button onclick="saveApiKeys()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all">
+                    LƯU VÀO BỘ NHỚ
+                </button>
             </div>
         </div>
     </div>
