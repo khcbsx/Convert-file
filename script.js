@@ -18,8 +18,6 @@ window.onload = () => {
     });
     updateKeyBadge();
     renderKeyDashboard();
-    
-    // ĐÃ XÓA: Lệnh tự động test Key ngầm lúc tải trang để không tốn Quota
 };
 
 function updateKeyBadge() {
@@ -35,7 +33,7 @@ function updateKeyBadge() {
     }
 }
 
-// HÀM TEST KHI NGƯỜI DÙNG BẤM NÚT "KIỂM TRA ĐỒNG LOẠT"
+// HÀM TEST KHI NGƯỜI DÙNG CHỦ ĐỘNG BẤM NÚT
 async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
@@ -62,17 +60,16 @@ async function pingGeminiKey(keyObj) {
     renderKeyDashboard();
 }
 
-async function testAllKeysSilently() {
+async function testAllKeys() {
+    const btn = document.getElementById('btnTestAll');
+    btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
+    
+    // Test tuần tự thủ công
     for (let k of GLOBAL_KEYS_DB) {
         await pingGeminiKey(k);
         await new Promise(resolve => setTimeout(resolve, 800)); 
     }
-}
-
-async function testAllKeys() {
-    const btn = document.getElementById('btnTestAll');
-    btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
-    await testAllKeysSilently();
+    
     btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT';
 }
 
@@ -112,7 +109,6 @@ function saveApiKeys() {
 
     let startId = GLOBAL_KEYS_DB.length + 1;
     keys.forEach(k => {
-        // Vừa nạp vào cũng mặc định cho Xanh luôn, không test tự động nữa
         const newKeyObj = { id: startId++, key: k, source: "Mới nạp", status: "good" };
         GLOBAL_KEYS_DB.push(newKeyObj);
     });
