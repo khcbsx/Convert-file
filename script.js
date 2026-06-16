@@ -1,13 +1,17 @@
 // =====================================================================
-// 1. KHO DỰ TRỮ API KEY (Dán các Key của bạn vào đây)
+// 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Giữ nguyên khi F5/Tắt trang)
 // =====================================================================
 const PREDEFINED_KEYS = [
-    "AQ.Ab8RN6LwkpluunVR60KdIL-WJvQXZhsWBL9NZqSnvMOp769tYw", // Key mới
-    "AIzaSyBNcK8CgY0dDI97u9g2Uj6UcG2rn0E43Lo", // Key cũ 1
-    "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE", // Key cũ 2
-    "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"  // Key cũ 3
+    "AQ.Ab8RN6LwkpluunVR60KdIL-WJvQXZhsWBL9NZqSnvMOp769tYw", // Key cố định số 1
+    "AIzaSyBNcK8CgY0dDI97u9g2Uj6UcG2rn0E43Lo", // Key cố định số 2
+    "AIzaSyDnQWNVyC8jBAOzkI53gpqOOIcl8G8zzwE", // Key cố định số 3
+    "AIzaSyCDZvvLfI3lNR62Xeo8kSaxX8ys42TABu8"  // Key cố định số 4
 ];
 
+// Mảng chứa các Key nhập từ giao diện (Chỉ lưu trong RAM, F5 sẽ BỊ XÓA TRẮNG)
+let UI_API_KEYS = []; 
+
+// --- 2. QUẢN LÝ TRẠNG THÁI HỆ THỐNG ---
 let fileQueue = []; 
 let selectedFormat = 'excel';
 let isProcessing = false;
@@ -20,8 +24,50 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-function toggleModal() { alert("Bạn đang sử dụng chế độ nạp Key tự động. Vui lòng mở file script.js để thêm/sửa Key!"); }
+// Khởi chạy ngay khi tải trang
+window.onload = () => {
+    updateKeyBadge(); // Chỉ hiển thị số lượng key cố định có sẵn
+};
 
+function toggleModal(show) {
+    const modal = document.getElementById('apiModal');
+    const content = document.getElementById('apiModalContent');
+    if (show) {
+        modal.classList.remove('hidden');
+        setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
+    } else {
+        modal.classList.add('opacity-0'); content.classList.add('scale-95');
+        setTimeout(() => { modal.classList.add('hidden'); }, 300);
+    }
+}
+
+// Xử lý lưu Key tạm thời từ Giao diện
+function saveApiKeys() {
+    const rawText = document.getElementById('apiKeysInput').value;
+    const keys = rawText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
+    
+    // Đã loại bỏ hoàn toàn localStorage.setItem nhằm xóa sạch vết dấu khi tắt trang
+    UI_API_KEYS = keys; 
+    updateKeyBadge();
+    toggleModal(false);
+    alert(`Đã nạp tạm thời ${keys.length} Key từ giao diện. Các Key này sẽ TỰ HỦY khi bạn F5 hoặc đóng trang.`);
+}
+
+function updateKeyBadge() {
+    const badge = document.getElementById('keyCounterBadge');
+    // Tính tổng số lượng Key (Cố định trong code + Tạm thời ngoài UI)
+    const validPredefined = PREDEFINED_KEYS.filter(k => k && k.length > 10).length;
+    const totalCount = validPredefined + UI_API_KEYS.length;
+    
+    badge.textContent = `Tổng hợp: ${totalCount} Key`;
+    if (totalCount > 0) {
+        badge.className = "text-[10px] font-mono bg-emerald-900/20 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/50";
+    } else {
+        badge.className = "text-[10px] text-gray-400 font-mono bg-gray-800/50 px-2 py-1 rounded-md border border-gray-700/50";
+    }
+}
+
+// --- 3. RENDER GIAO DIỆN ĐỊNH DẠNG ---
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
@@ -43,6 +89,7 @@ function renderFormats() {
 function selectFormat(id) { if(!isProcessing) { selectedFormat = id; renderFormats(); } }
 renderFormats();
 
+// --- 4. KÉO THẢ FILES ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 dropZone.addEventListener('click', () => { if(!isProcessing) fileInput.click(); });
@@ -56,6 +103,7 @@ function handleFiles(files) {
     renderQueue();
 }
 
+// --- 5. RENDER DANH SÁCH FILE ---
 const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const processBtn = document.getElementById('processBtn');
@@ -104,39 +152,43 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI (PROMPT RẤT CHẶT ĐỂ KHÔNG BỊ DÍNH CỘT)
+// 6. LOGIC AI - GỘP CHUNG 2 NGUỒN KEY (UI LÊN TRƯỚC, CODE CHẠY SAU)
 // =====================================================================
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
-    });
-}
-
 async function callGeminiAPI(file, targetFormat) {
     const base64Data = await fileToBase64(file);
     
     let promptInstruction = "";
     if (targetFormat === 'excel') {
-        promptInstruction = `Trích xuất dữ liệu tài liệu này thành CSV chuẩn (dùng dấu phẩy).
-QUY TẮC BẮT BUỘC:
-1. KHÔNG thêm bất kỳ bình luận nào (không có chữ "Dưới đây là..."). KHÔNG dùng thẻ \`\`\`csv.
-2. Xóa mọi dấu '$' khỏi các số tiền.
-3. CHÚ Ý BẢNG CHI TIẾT (Line Items): Cột "Mã SP (Item No)" và cột "Mô tả (Description)" PHẢI LUÔN BỊ NGĂN CÁCH bằng 1 dấu phẩy (,). Tuyệt đối không gộp chung vào 1 ô.
-4. Mọi chuỗi ký tự chứa dấu phẩy (như địa chỉ, mô tả hàng hóa) BẮT BUỘC phải đặt trong dấu ngoặc kép ("").
-5. Đếm số cột của bảng chi tiết. Ghi chữ "Total Amount" ở cột áp chót, ghi số tiền tổng ở cột cuối cùng dưới cột Sub Total.`;
+        promptInstruction = `Bạn là một cỗ máy trích xuất dữ liệu thông minh từ PDF/Hình ảnh sang CSV. Tài liệu có thể là Đơn đặt hàng (PO), Hóa đơn (Invoice), Phiếu thu... với cấu trúc thay đổi linh hoạt tùy theo file.
+
+YÊU CẦU TỐI THƯỢNG:
+1. CHỈ TRẢ VỀ dữ liệu CSV thô. TUYỆT ĐỐI KHÔNG có lời chào, KHÔNG giải thích, KHÔNG bọc trong thẻ markdown \`\`\`csv.
+2. LOẠI BỎ toàn bộ ký tự '$', 'VND', hoặc ký hiệu tiền tệ ở tất cả các con số để giữ số thuần túy.
+3. Bất kỳ giá trị nào có chứa dấu phẩy (như địa chỉ, mô tả hàng hóa) BẮT BUỘC phải bọc trong dấu ngoặc kép ("") để không làm vỡ cột CSV.
+
+HÃY PHÂN TÍCH TÀI LIỆU VÀ TRÍCH XUẤT THEO CẤU TRÚC 2 PHẦN LINH HOẠT SAU:
+
+PHẦN 1: THÔNG TIN CHUNG (Metadata ở đầu tài liệu)
+- Xuất theo cấu trúc 2 cột: Trường thông tin,Giá trị
+- Hãy TỰ ĐỘNG QUÉT và trích xuất TẤT CẢ các trường thông tin chung xuất hiện ở nửa trên tài liệu (Ví dụ: Số PO, Ngày lập, Nhà cung cấp, Địa chỉ, Nơi giao, Điều khoản, Người liên hệ, hoặc BẤT KỲ trường thông tin mới nào xuất hiện trong file mà không có trong danh sách này). Liệt kê đầy đủ không bỏ sót trường nào.
+
+[Sau khi hết Phần 1, thêm một dòng trống bằng dấu phẩy: , ]
+
+PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT (Line Items)
+- Hàng đầu tiên: Tự động trích xuất chính xác các Tiêu đề cột thực tế của bảng trong file (Ví dụ: Ln #, Item No, Description, Price, Quantity, Sub Total...).
+- Các hàng tiếp theo: Liệt kê đầy đủ toàn bộ các dòng hàng hóa chi tiết tương ứng.
+- Hàng cuối cùng (Hàng tổng): Hãy đếm số lượng cột của bảng dữ liệu đó. Đặt cụm từ "Tổng cộng (Total Amount)" ở ô áp chót (cột kế cuối), và con số tổng tiền phải nằm chính xác ở ô cuối cùng (để thẳng hàng với cột Thành tiền/Sub Total trên Excel).`;
     } else {
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
     }
     
-    const validKeys = PREDEFINED_KEYS.filter(k => k && k.length > 10);
-    if(validKeys.length === 0) throw new Error("Chưa có API Key!");
+    // TRỘN HAI NGUỒN KEY: Ưu tiên các Key nhập từ UI lên trước, Key cố định lót đường phía sau
+    const activeKeysConfig = [...UI_API_KEYS, ...PREDEFINED_KEYS].filter(k => k && k.length > 10);
+    if(activeKeysConfig.length === 0) throw new Error("Hệ thống hoàn toàn trống Key! Hãy bấm 'CẤU HÌNH API' để nạp tạm thời hoặc điền Key cố định vào file script.js.");
 
     let attempts = 0;
-    while (attempts < validKeys.length) {
-        const currentKey = validKeys[currentKeyIndex % validKeys.length];
+    while (attempts < activeKeysConfig.length) {
+        const currentKey = activeKeysConfig[currentKeyIndex % activeKeysConfig.length];
         const modelsToTry = ['gemini-2.5-flash', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
         
         for (let model of modelsToTry) {
@@ -153,17 +205,17 @@ QUY TẮC BẮT BUỘC:
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 }
             } catch (e) {
-                // Thử model khác
+                // Thử model kế tiếp
             }
         }
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("TẤT CẢ CÁC API KEY ĐỀU BỊ LỖI HOẶC ĐÃ HẾT LƯỢT GỌI!");
+    throw new Error("TẤT CẢ CÁC KEY SẴN CÓ VÀ KEY VỪA NẠP ĐỀU BÁO LỖI HOẶC HẾT LƯỢT GỌI!");
 }
 
 // =====================================================================
-// 7. VÒNG LẶP XỬ LÝ (CÓ DELAY CHỐNG SPAM API)
+// 7. VÒNG LẶP XỬ LÝ (CÓ DELAY 4S)
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -178,7 +230,6 @@ processBtn.addEventListener('click', async () => {
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
-        // BƯỚC 1: Xử lý file
         fileQueue[i].status = 'processing';
         renderQueue();
 
@@ -188,19 +239,16 @@ processBtn.addEventListener('click', async () => {
             fileQueue[i].status = 'done';
             renderQueue();
             
-            // Gọi hàm đóng gói file Excel xịn
             triggerAutoDownload(fileQueue[i].file.name, targetFormat, aiGeneratedText);
 
-            // BƯỚC 2: DELAY 4 GIÂY ĐỂ LÀM MÁT API (Nếu còn file tiếp theo)
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
-                // Đổi trạng thái hiển thị UI cho người dùng biết đang Delay
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
                     fileQueue[nextPendingFileIndex].status = 'delaying';
                     renderQueue();
-                    await new Promise(resolve => setTimeout(resolve, 4000)); // Delay chính xác 4 giây
-                    fileQueue[nextPendingFileIndex].status = 'pending'; // Trả lại pending để vòng lặp sau chộp lấy
+                    await new Promise(resolve => setTimeout(resolve, 4000)); // Delay 4 giây làm mát API
+                    fileQueue[nextPendingFileIndex].status = 'pending'; 
                 }
             }
 
@@ -219,37 +267,24 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI EXCEL BẰNG SHEETJS (XUẤT RA FILE .XLSX XỊN, ÉP ĐỘ RỘNG CỘT)
+// 8. ĐÓNG GÓI SẢN PHẨM EXCEL (.XLSX) QUA THƯ VIỆN SHEETJS
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
-        // --- 1. SỬ DỤNG SHEETJS ĐỂ TẠO FILE EXCEL .XLSX ---
-        // Parse CSV string thành Sheet
         const ws = XLSX.utils.csv_to_sheet(fileContent);
-
-        // Định dạng độ rộng các cột để chữ không bị tràn hay hiện #####
+        
+        // Thiết lập tự co giãn ô hàng rộng rãi, dữ liệu nằm gọn gàng
         const wscols = [
-            {wch: 15}, // Cột A (Ví dụ: PO, Ln #)
-            {wch: 30}, // Cột B (Mã SP, Supplier)
-            {wch: 45}, // Cột C (Description - Cần rộng nhất)
-            {wch: 15}, // Cột D
-            {wch: 15}, // Cột E (Price)
-            {wch: 12}, // Cột F (Quantity)
-            {wch: 10}, // Cột G (U/M)
-            {wch: 18}  // Cột H (Sub Total)
+            {wch: 15}, {wch: 30}, {wch: 45}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 18} 
         ];
-        ws['!cols'] = wscols; // Ép cấu trúc cột vào Sheet
+        ws['!cols'] = wscols; 
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data");
-        
-        // Tải xuống file .xlsx thực thụ
+        XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu Trích xuất");
         XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
-
     } else {
-        // Logic cho Word/PDF (vẫn dùng file text bình thường)
         const newExt = format === 'word' ? '.doc' : '.txt';
         const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
         const blob = new Blob([bom, fileContent], { type: "text/plain;charset=utf-8" });
