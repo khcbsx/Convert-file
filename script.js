@@ -289,7 +289,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6. LOGIC AI - THÔNG MINH ĐÁNH DẤU KEY LỖI
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO TOÀN 100% NGUYÊN BẢN)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -300,12 +300,9 @@ function fileToBase64(file) {
     });
 }
 
-async function callGeminiAPI(file, targetFormat) {
+async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
-    
-    let promptInstruction = "";
-    if (targetFormat === 'excel') {
-        promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
+    const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 YÊU CẦU:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
 2. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
@@ -326,24 +323,18 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
 - Điền đầy đủ các dòng. Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để trống giữa 2 dấu phẩy. Dữ liệu ngày tháng phải cho vào đúng cột "Req. Due Date".
 - DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 dấu phẩy ở trước để chữ Total Amount rơi vào cột J:
 ,,,,,,,,,Total Amount,[Số tiền tổng]`;
-    } else {
-        promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
-    }
-    
-    // CHỈ LẤY CÁC KEY CHƯA BỊ ĐÁNH DẤU LÀ LỖI ('error')
+
     let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
     let attempts = 0;
     while (attempts < activeKeys.length) {
-        // Cập nhật lại danh sách lỡ có key nào vừa bị chết ở vòng lặp trước
         activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
         const modelsToTry = ['gemini-2.5-flash', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
         
-        let success = false;
         for (let model of modelsToTry) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
@@ -355,26 +346,73 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
-                    currentKeyObj.status = 'good'; // Chạy mượt -> Đánh dấu tốt
+                    currentKeyObj.status = 'good';
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 }
-            } catch (e) {} // Bỏ qua thử model khác
+            } catch (e) {} 
         }
         
-        // Nếu thử hết các Model mà vẫn không chạy được -> Key này chính thức hết Quota hoặc bị Khóa
         currentKeyObj.status = 'error';
         updateKeyBadge(); renderKeyDashboard();
-
         currentKeyIndex++; 
         attempts++;
     }
-    
     throw new Error("ALL_DEAD");
 }
 
 // =====================================================================
-// 7. VÒNG LẶP XỬ LÝ (CHIA MẺ 5 FILE & CHỜ 60 GIÂY)
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD (MỚI & ĐỘC LẬP HOÀN TOÀN)
+// =====================================================================
+async function callGeminiAPI_Word(file) {
+    const base64Data = await fileToBase64(file);
+    const promptInstruction = `Bạn là chuyên gia số hóa tài liệu siêu việt.
+YÊU CẦU TỐI THƯỢNG:
+1. Đọc và trích xuất TOÀN BỘ nội dung văn bản từ PDF/Hình ảnh này.
+2. Giữ nguyên tối đa cấu trúc, bố cục, các thẻ tiêu đề (Heading), đoạn văn, danh sách và bảng biểu.
+3. TRẢ VỀ DƯỚI DẠNG MÃ HTML THUẦN TÚY (Chỉ dùng các thẻ cơ bản như <h1>, <h2>, <p>, <ul>, <li>, <table>, <tr>, <td>...).
+4. Đảm bảo bảng <table> có thuộc tính border="1" style="border-collapse: collapse; width: 100%;".
+5. TUYỆT ĐỐI KHÔNG bọc trong markdown (không dùng \`\`\`html), KHÔNG giải thích, CHỈ XUẤT RA mã HTML.`;
+
+    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    if(activeKeys.length === 0) throw new Error("ALL_DEAD");
+
+    let attempts = 0;
+    while (attempts < activeKeys.length) {
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+        if(activeKeys.length === 0) break;
+
+        const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        
+        for (let model of modelsToTry) {
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    let rawText = data.candidates[0].content.parts[0].text;
+                    currentKeyObj.status = 'good'; 
+                    updateKeyBadge(); renderKeyDashboard();
+                    return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
+                }
+            } catch (e) {} 
+        }
+        
+        currentKeyObj.status = 'error';
+        updateKeyBadge(); renderKeyDashboard();
+        currentKeyIndex++; 
+        attempts++;
+    }
+    throw new Error("ALL_DEAD");
+}
+
+// =====================================================================
+// 7. NGƯỜI GÁC CỔNG: BỘ ĐIỀU PHỐI VÀ CHIA MẺ 5 FILE
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -384,48 +422,52 @@ processBtn.addEventListener('click', async () => {
     processBtn.disabled = true;
     
     const targetFormat = selectedFormat;
-    let filesProcessedInCurrentBatch = 0; // Bộ đếm số file trong mẻ hiện tại
+    let filesProcessedInCurrentBatch = 0; 
 
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
         fileQueue[i].status = 'processing';
         
-        // Hiện thông báo đếm số file trên nút bấm
         processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ (${filesProcessedInCurrentBatch + 1}/5 CỦA MẺ)...</span>`;
         renderQueue();
 
         try {
-            const aiGeneratedText = await callGeminiAPI(fileQueue[i].file, targetFormat);
-            fileQueue[i].formatTarget = targetFormat;
-            fileQueue[i].status = 'done';
-            renderQueue();
+            let aiGeneratedText = "";
             
-            triggerAutoDownload(fileQueue[i].file.name, targetFormat, aiGeneratedText);
+            // BẺ GHI LUỒNG CHẠY (Phân phối công việc)
+            if (targetFormat === 'excel') {
+                aiGeneratedText = await callGeminiAPI_Excel(fileQueue[i].file);
+                fileQueue[i].formatTarget = targetFormat;
+                fileQueue[i].status = 'done';
+                renderQueue();
+                triggerAutoDownload_Excel(fileQueue[i].file.name, aiGeneratedText);
+            } 
+            else if (targetFormat === 'word') {
+                aiGeneratedText = await callGeminiAPI_Word(fileQueue[i].file);
+                fileQueue[i].formatTarget = targetFormat;
+                fileQueue[i].status = 'done';
+                renderQueue();
+                triggerAutoDownload_Word(fileQueue[i].file.name, aiGeneratedText);
+            }
             
-            filesProcessedInCurrentBatch++; // Hoàn thành 1 file, tăng bộ đếm
+            filesProcessedInCurrentBatch++; 
 
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
-                    
-                    // KIỂM TRA ĐIỀU KIỆN CHIA MẺ
                     if (filesProcessedInCurrentBatch >= 5) {
-                        // Đã chạy đủ 5 file -> Cho ngủ đông 60 giây để Google Reset Quota Phút
                         fileQueue[nextPendingFileIndex].status = 'delaying';
                         processBtn.innerHTML = `<span class="flex items-center justify-center gap-2 text-yellow-400"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ RESET BĂNG THÔNG API...</span>`;
                         renderQueue();
-                        
-                        await new Promise(resolve => setTimeout(resolve, 60000)); // Delay 60s
-                        
-                        filesProcessedInCurrentBatch = 0; // Reset lại bộ đếm mẻ
+                        await new Promise(resolve => setTimeout(resolve, 60000)); 
+                        filesProcessedInCurrentBatch = 0; 
                         fileQueue[nextPendingFileIndex].status = 'pending';
                     } else {
-                        // Chưa đủ 5 file -> Chờ ngắn 3 giây để an toàn cho dung lượng Token (TPM)
                         fileQueue[nextPendingFileIndex].status = 'delaying';
                         renderQueue();
-                        await new Promise(resolve => setTimeout(resolve, 3000)); // Delay 3s
+                        await new Promise(resolve => setTimeout(resolve, 3000)); 
                         fileQueue[nextPendingFileIndex].status = 'pending'; 
                     }
                 }
@@ -433,7 +475,6 @@ processBtn.addEventListener('click', async () => {
         } catch (error) {
             fileQueue[i].status = 'pending'; 
             renderQueue();
-            
             if(error.message === "ALL_DEAD") {
                 showErrorToast();
                 toggleModal(true); 
@@ -450,108 +491,128 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI EXCEL CHUẨN VÀ LÀM SẠCH SỐ THẬP PHÂN
+// 8A. ĐÓNG GÓI EXCEL (BẢO TOÀN 100% NGUYÊN BẢN)
 // =====================================================================
-function triggerAutoDownload(originalName, format, fileContent) {
+function triggerAutoDownload_Excel(originalName, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+    try {
+        const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
+        const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
 
-    if (format === 'excel') {
-        try {
-            // raw: true giữ nguyên ngày tháng ở dạng String, không bị biến thành số
-            const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
-            const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
-            const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
+        let splitIndex = -1;
+        for (let i = 0; i < aoa.length; i++) {
+            if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) { splitIndex = i; break; }
+        }
 
-            let splitIndex = -1;
-            for (let i = 0; i < aoa.length; i++) {
-                if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) { splitIndex = i; break; }
-            }
+        let metadataAoA = [], tableAoA = [];
+        if (splitIndex !== -1) {
+            metadataAoA = aoa.slice(0, splitIndex).filter(row => row.length > 0 && row.some(c => c !== ""));
+            tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
+        } else metadataAoA = aoa; 
 
-            let metadataAoA = [], tableAoA = [];
-            if (splitIndex !== -1) {
-                metadataAoA = aoa.slice(0, splitIndex).filter(row => row.length > 0 && row.some(c => c !== ""));
-                tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
-            } else metadataAoA = aoa; 
-
-            // THUẬT TOÁN LÀM SẠCH SỐ THẬP PHÂN (XÓA SỐ 0 DƯ THỪA)
-            // Trong bảng chi tiết từ trái sang: Cột K (Price) là index 7, Cột L (Quantity) là index 8, Cột N (Sub Total) là index 10
-            for (let i = 0; i < tableAoA.length; i++) {
-                [7, 8, 10].forEach(colIdx => {
-                    if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
-                        let val = tableAoA[i][colIdx].toString().trim();
-                        // Chuyển chuỗi "70.4100" thành số Number 70.41 thuần túy
-                        if (!isNaN(parseFloat(val)) && !val.includes("/")) { // Không parse ngày tháng
-                            tableAoA[i][colIdx] = parseFloat(val);
-                        }
-                    }
-                });
-            }
-
-            const finalAoA = [];
-            const maxRows = Math.max(metadataAoA.length, tableAoA.length);
-            for (let i = 0; i < maxRows; i++) {
-                const row = [];
-                // Bố cục song song
-                if (i < metadataAoA.length) { row.push(metadataAoA[i][0] || ""); row.push(metadataAoA[i][1] || ""); } else row.push("", "");
-                row.push("");
-                if (i < tableAoA.length) row.push(...tableAoA[i]);
-                finalAoA.push(row);
-            }
-
-            const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
-            finalWs['!cols'] = [{wch: 22}, {wch: 35}, {wch: 2}, {wch: 8}, {wch: 15}, {wch: 40}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 10}, {wch: 8}, {wch: 15}]; 
-
-            const maxMetadataRow = metadataAoA.length - 1;
-            const maxTableRow = tableAoA.length - 1;
-            const range = XLSX.utils.decode_range(finalWs['!ref']);
-
-            for(let R = range.s.r; R <= range.e.r; ++R) {
-                for(let C = range.s.c; C <= range.e.c; ++C) {
-                    const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
-                    let needBorder = false;
-                    let isHeader = false; 
-
-                    if ((C === 0 || C === 1) && R <= maxMetadataRow) {
-                        needBorder = true;
-                        if (C === 0) isHeader = true; 
-                    } else if (C >= 3 && C <= 13 && R <= maxTableRow) {
-                        needBorder = true;
-                        if (R === 0) isHeader = true; 
-                    }
-
-                    if (needBorder) {
-                        if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; 
-                        let cellStyle = {
-                            border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
-                            alignment: { vertical: "center", wrapText: true }
-                        };
-                        // Căn phải (right) cho các cột Số liệu (Price, Quantity, Sub Total) để đẹp mắt
-                        if (C === 10 || C === 11 || C === 13) {
-                            cellStyle.alignment.horizontal = "right";
-                        }
-                        
-                        if (isHeader) {
-                            cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
-                            cellStyle.font = { bold: true, color: { rgb: "000000" } };
-                            cellStyle.alignment.horizontal = "center"; // Tiêu đề căn giữa
-                        }
-                        finalWs[cell_ref].s = cellStyle;
+        for (let i = 0; i < tableAoA.length; i++) {
+            [7, 8, 10].forEach(colIdx => {
+                if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
+                    let val = tableAoA[i][colIdx].toString().trim();
+                    if (!isNaN(parseFloat(val)) && !val.includes("/")) { 
+                        tableAoA[i][colIdx] = parseFloat(val);
                     }
                 }
-            }
-
-            const newWb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWb, finalWs, "Data");
-            XLSX.writeFile(newWb, `${baseName}_converted.xlsx`);
-
-        } catch (error) {
-            console.error(error); alert("Đã xảy ra lỗi đóng gói Excel.");
+            });
         }
-    } else {
-        const newExt = format === 'word' ? '.doc' : '.txt';
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fileContent], { type: "text/plain;charset=utf-8" });
+
+        const finalAoA = [];
+        const maxRows = Math.max(metadataAoA.length, tableAoA.length);
+        for (let i = 0; i < maxRows; i++) {
+            const row = [];
+            if (i < metadataAoA.length) { row.push(metadataAoA[i][0] || ""); row.push(metadataAoA[i][1] || ""); } else row.push("", "");
+            row.push("");
+            if (i < tableAoA.length) row.push(...tableAoA[i]);
+            finalAoA.push(row);
+        }
+
+        const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
+        finalWs['!cols'] = [{wch: 22}, {wch: 35}, {wch: 2}, {wch: 8}, {wch: 15}, {wch: 40}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 10}, {wch: 8}, {wch: 15}]; 
+
+        const maxMetadataRow = metadataAoA.length - 1;
+        const maxTableRow = tableAoA.length - 1;
+        const range = XLSX.utils.decode_range(finalWs['!ref']);
+
+        for(let R = range.s.r; R <= range.e.r; ++R) {
+            for(let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
+                let needBorder = false;
+                let isHeader = false; 
+
+                if ((C === 0 || C === 1) && R <= maxMetadataRow) {
+                    needBorder = true;
+                    if (C === 0) isHeader = true; 
+                } else if (C >= 3 && C <= 13 && R <= maxTableRow) {
+                    needBorder = true;
+                    if (R === 0) isHeader = true; 
+                }
+
+                if (needBorder) {
+                    if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; 
+                    let cellStyle = {
+                        border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
+                        alignment: { vertical: "center", wrapText: true }
+                    };
+                    if (C === 10 || C === 11 || C === 13) {
+                        cellStyle.alignment.horizontal = "right";
+                    }
+                    
+                    if (isHeader) {
+                        cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
+                        cellStyle.font = { bold: true, color: { rgb: "000000" } };
+                        cellStyle.alignment.horizontal = "center"; 
+                    }
+                    finalWs[cell_ref].s = cellStyle;
+                }
+            }
+        }
+
+        const newWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWb, finalWs, "Data");
+        XLSX.writeFile(newWb, `${baseName}_converted.xlsx`);
+
+    } catch (error) {
+        console.error(error); alert("Đã xảy ra lỗi đóng gói Excel.");
+    }
+}
+
+// =====================================================================
+// 8B. ĐÓNG GÓI WORD (MỚI & ĐỘC LẬP HOÀN TOÀN)
+// =====================================================================
+function triggerAutoDownload_Word(originalName, fileContent) {
+    const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+    try {
+        const wordHeaders = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>Export HTML to Word</title>
+        <style>
+            body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; }
+            h1, h2, h3 { color: #2c3e50; }
+            table { border-collapse: collapse; width: 100%; margin-top: 15px; margin-bottom: 15px; }
+            th, td { border: 1px solid #000000; padding: 8px; text-align: left; vertical-align: middle; }
+            th { background-color: #e2e8f0; font-weight: bold; }
+            ul, ol { margin-top: 5px; margin-bottom: 5px; }
+        </style>
+        </head><body>`;
+        const wordFooters = "</body></html>";
+        
+        const fullWordContent = wordHeaders + fileContent + wordFooters;
+
+        const blob = new Blob(['\ufeff', fullWordContent], { type: 'application/msword' });
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `${baseName}_converted${newExt}`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${baseName}_converted.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error(error); alert("Đã xảy ra lỗi đóng gói Word.");
     }
 }
