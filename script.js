@@ -276,17 +276,8 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO TOÀN 100% NGUYÊN BẢN & FIX LỖI UI)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (CHUẨN HÓA MÀU SẮC QUOTA)
 // =====================================================================
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
-    });
-}
-
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
@@ -320,9 +311,10 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        // Đưa 1.5 lên đầu vì nó ổn định nhất, không bị lỗi 404
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash']; 
         
-        let isKeyDead = true; // MẶC ĐỊNH: Nghi ngờ Key này đã chết
+        let isKeyDead = true; // Mặc định là TỬ HÌNH
 
         for (let model of modelsToTry) {
             try {
@@ -333,39 +325,38 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                 });
 
                 if (response.ok) {
+                    // CÓ KẾT QUẢ -> XÓA ÁN, CHUYỂN MÀU XANH
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
-                    currentKeyObj.status = 'good'; // Thành công -> Xóa án
+                    currentKeyObj.status = 'good'; 
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
-                else if (response.status === 429 || response.status >= 500) {
-                    // CHỈ tha bổng nếu Google báo quá tải (429) hoặc sập server (500)
+                else if (response.status >= 500) {
+                    // CHỈ tha bổng nếu Google bị SẬP SERVER (500, 503). 
+                    // Lỗi 429 (Hết Quota RPD) đi qua đây sẽ không được tha bổng -> isKeyDead vẫn = true!
                     isKeyDead = false; 
-                    break; // Thoát vòng lặp model, nhường việc cho Key tiếp theo
+                    break;
                 }
-                // Các lỗi như 404, 400, 403 đi qua đây, isKeyDead vẫn là TRUE
             } catch (e) {
-                // Lỗi ERR_FAILED chui vào đây. isKeyDead vẫn giữ nguyên là TRUE
+                // Rớt mạng, chặn QC (ERR_FAILED)... kệ nó, thử model tiếp theo.
             } 
         }
         
-        // KIỂM TRA LẠI: Nếu vẫn mang án tử -> Gạch đỏ ngay lập tức!
+        // CHỐT KẾT QUẢ: Nếu gọi cả 2 model mà dính 429 (Hết Quota) hoặc 403 (Bị khóa) -> ĐỔI SANG ĐỎ!
         if (isKeyDead) {
             currentKeyObj.status = 'error';
         }
         
-        updateKeyBadge(); 
-        renderKeyDashboard();
-        
+        updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("Quá tải hoặc tất cả API Key đều đã hỏng!");
+    throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
 }
 
 // =====================================================================
-// 6B. LOGIC AI - ĐƯỜNG RAY WORD (MỚI & ĐỘC LẬP HOÀN TOÀN)
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD (CHUẨN HÓA MÀU SẮC QUOTA)
 // =====================================================================
 async function callGeminiAPI_Word(file) {
     const base64Data = await fileToBase64(file);
@@ -386,7 +377,7 @@ YÊU CẦU TỐI THƯỢNG:
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash'];
         
         let isKeyDead = true; 
 
@@ -405,7 +396,7 @@ YÊU CẦU TỐI THƯỢNG:
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
                 } 
-                else if (response.status === 429 || response.status >= 500) {
+                else if (response.status >= 500) {
                     isKeyDead = false; 
                     break;
                 }
@@ -417,13 +408,11 @@ YÊU CẦU TỐI THƯỢNG:
             currentKeyObj.status = 'error';
         }
         
-        updateKeyBadge(); 
-        renderKeyDashboard();
-        
+        updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("Quá tải hoặc tất cả API Key đều đã hỏng!");
+    throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
 }
 
 // =====================================================================
