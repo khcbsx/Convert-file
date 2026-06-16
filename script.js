@@ -155,7 +155,7 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - ÉP KIỂU NGÀY THÁNG BẰNG DẤU NHÁY ĐƠN
+// 6. LOGIC AI - KHÓA CỨNG CẤU TRÚC BẢNG & NGÀY THÁNG
 // =====================================================================
 
 function fileToBase64(file) {
@@ -172,32 +172,34 @@ async function callGeminiAPI(file, targetFormat) {
     
     let promptInstruction = "";
     if (targetFormat === 'excel') {
-        promptInstruction = `Bạn là một cỗ máy trích xuất dữ liệu thông minh từ PDF/Hình ảnh sang CSV. Tài liệu có thể là Đơn đặt hàng (PO), Hóa đơn (Invoice), Phiếu thu...
+        promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 
 YÊU CẦU TỐI THƯỢNG:
-1. CHỈ TRẢ VỀ dữ liệu CSV thô. TUYỆT ĐỐI KHÔNG có lời chào, KHÔNG giải thích, KHÔNG bọc trong thẻ markdown \`\`\`csv.
-2. LOẠI BỎ toàn bộ ký tự '$', 'VND', hoặc ký hiệu tiền tệ ở tất cả các con số để giữ số thuần túy.
-3. Bất kỳ giá trị nào có chứa dấu phẩy (như địa chỉ, mô tả hàng hóa) BẮT BUỘC phải bọc trong dấu ngoặc kép ("") để không làm vỡ cột CSV.
-4. ĐỊNH DẠNG NGÀY THÁNG: Mọi giá trị ngày tháng (Ví dụ: 06/09/26, 09/10/26) BẮT BUỘC phải được thêm một dấu nháy đơn ở đằng trước (Ví dụ: '06/09/26, '09/10/26) để chống lỗi Serial của Excel.
+1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích, KHÔNG bọc trong markdown.
+2. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
+3. Bất kỳ giá trị nào chứa dấu phẩy phải bọc trong ngoặc kép ("").
+4. ĐỊNH DẠNG NGÀY THÁNG: Thêm một CẢ KHOẢNG TRẮNG (Space) vào ngay trước các ngày tháng (Ví dụ: " 06/09/26", " 09/10/26") để ép Excel giữ nguyên nó là Text, không được tự động chuyển thành số serial.
 
-HÃY PHÂN TÍCH TÀI LIỆU VÀ TRÍCH XUẤT THEO CẤU TRÚC 2 PHẦN LINH HOẠT SAU:
+CẤU TRÚC BẮT BUỘC (Phải tuân thủ 100%):
 
-PHẦN 1: THÔNG TIN CHUNG (Metadata ở đầu tài liệu)
-- Xuất theo cấu trúc 2 cột: Trường thông tin,Giá trị
-- Hãy TỰ ĐỘNG QUÉT và trích xuất TẤT CẢ các trường thông tin chung xuất hiện ở nửa trên tài liệu. Liệt kê đầy đủ không bỏ sót trường nào.
+PHẦN 1: THÔNG TIN CHUNG
+Trường thông tin,Giá trị
+[Trích xuất TẤT CẢ các trường thông tin chung ở đầu tài liệu thành 2 cột]
 
-[Sau khi hết Phần 1, thêm một dòng trống bằng dấu phẩy: , ]
+[Sau khi hết Phần 1, thêm đúng 1 dòng trống: , ]
 
-PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT (Line Items)
-- Hàng đầu tiên: Tự động trích xuất Tiêu đề cột thực tế của bảng trong file (Ví dụ: Ln #, Item No, Description, Price, Quantity...).
-- Các hàng tiếp theo: Liệt kê đầy đủ dòng hàng hóa chi tiết. ĐẢM BẢO cột Mã SP và Mô tả nằm ở 2 cột riêng biệt bằng cách dùng dấu phẩy (,) ngăn cách.
-- Hàng cuối cùng (Hàng tổng): Đếm số lượng cột của bảng dữ liệu. Đặt cụm từ "Tổng cộng (Total Amount)" ở ô áp chót (cột kế cuối), và con số tổng tiền nằm ở ô cuối cùng (để thẳng hàng với cột Thành tiền).`;
+PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
+- BẮT BUỘC XUẤT CHÍNH XÁC 11 CỘT SAU (kể cả khi trên PDF không có cột đó, vẫn phải để trống bằng dấu phẩy):
+Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery Terms,Price,Quantity,U/M,Sub Total
+- Dữ liệu ngày tháng (09/10/26) phải điền vào đúng cột "Req. Due Date". Cột "Confirmed Del. Date" hãy để trống (,).
+- DÒNG TỔNG CỘNG: Đặt ở dòng cuối cùng. BẮT BUỘC dùng chính xác 9 dấu phẩy ở phía trước để đẩy chữ "Total Amount" vào cột J, và số tiền vào cột K, y hệt như sau:
+,,,,,,,,,Total Amount,[Số tiền tổng]`;
     } else {
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
     }
     
     const activeKeysConfig = [...UI_API_KEYS, ...PREDEFINED_KEYS].filter(k => k && k.length > 10);
-    if(activeKeysConfig.length === 0) throw new Error("Hệ thống hoàn toàn trống Key! Hãy bấm 'CẤU HÌNH API' để nạp tạm thời hoặc điền Key cố định vào file script.js.");
+    if(activeKeysConfig.length === 0) throw new Error("Hệ thống trống Key! Hãy nạp Key vào.");
 
     let attempts = 0;
     while (attempts < activeKeysConfig.length) {
@@ -278,39 +280,40 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI EXCEL KÈM TÍNH NĂNG KẺ Ô (BORDERS) VÀ CĂN LỀ
+// 8. ĐÓNG GÓI EXCEL & KẺ Ô CHUẨN
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
         try {
-            // Đọc nội dung CSV do AI trả về
+            // Lưu ý: Đọc dữ liệu thô, không tự động parse số liệu (raw: true) đối với một số cột
             const wb = XLSX.read(fileContent, { type: "string" });
             const wsName = wb.SheetNames[0];
             const ws = wb.Sheets[wsName];
             
-            // 1. Tự động thiết lập độ rộng cột (Column Width)
+            // Chia tỉ lệ 11 Cột chuẩn theo cấu trúc của Purchase Order
             const wscols = [
-                {wch: 18}, // Cột A (Ví dụ: Trường thông tin / Ln #)
-                {wch: 35}, // Cột B (Mã SP)
-                {wch: 50}, // Cột C (Mô tả - Rộng nhất)
-                {wch: 15}, // Cột D (Ngày yêu cầu)
-                {wch: 15}, // Cột E (Phương thức / Đơn giá)
-                {wch: 12}, // Cột F (Số lượng)
-                {wch: 10}, // Cột G (Đơn vị)
-                {wch: 20}  // Cột H (Thành tiền)
+                {wch: 8},  // A: Ln #
+                {wch: 15}, // B: Item No
+                {wch: 40}, // C: Description
+                {wch: 12}, // D: Ref. Order #
+                {wch: 15}, // E: Confirmed Del. Date
+                {wch: 15}, // F: Req. Due Date
+                {wch: 15}, // G: Delivery Terms
+                {wch: 10}, // H: Price
+                {wch: 10}, // I: Quantity
+                {wch: 8},  // J: U/M
+                {wch: 18}  // K: Sub Total (Và chứa số Total Amount)
             ];
             ws['!cols'] = wscols; 
 
-            // 2. Thuật toán tự động quét bảng để Kẻ ô (Borders) và Căn lề
             const range = XLSX.utils.decode_range(ws['!ref']);
             for(let R = range.s.r; R <= range.e.r; ++R) {
                 for(let C = range.s.c; C <= range.e.c; ++C) {
                     const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
                     if(!ws[cell_ref]) continue;
 
-                    // Thêm style cho từng ô có dữ liệu
                     ws[cell_ref].s = {
                         border: {
                             top: {style: "thin", color: {rgb: "000000"}},
@@ -318,15 +321,11 @@ function triggerAutoDownload(originalName, format, fileContent) {
                             left: {style: "thin", color: {rgb: "000000"}},
                             right: {style: "thin", color: {rgb: "000000"}}
                         },
-                        alignment: {
-                            vertical: "center",
-                            wrapText: true // Text dài tự động rớt dòng, không bị tràn sang ô bên cạnh
-                        }
+                        alignment: { vertical: "center", wrapText: true }
                     };
                 }
             }
 
-            // Tải file xuống
             XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
         } catch (error) {
             console.error("Lỗi xuất Excel:", error);
