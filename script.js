@@ -268,14 +268,11 @@ function triggerAutoDownload(originalName, format, fileContent) {
 
     if (format === 'excel') {
         try {
-            // ĐIỂM SÁNG TẠO 1: { raw: true } - Lệnh khóa vĩnh viễn không cho phép Excel đổi ngày tháng thành số
             const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
             const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
             
-            // Chuyển toàn bộ dữ liệu thành mảng 2 chiều (Array of Arrays)
             const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
 
-            // Tìm vị trí chữ "---SPLIT---" để cắt dọc 2 bảng
             let splitIndex = -1;
             for (let i = 0; i < aoa.length; i++) {
                 if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) {
@@ -290,16 +287,15 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 metadataAoA = aoa.slice(0, splitIndex).filter(row => row.length > 0 && row.some(c => c !== ""));
                 tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
             } else {
-                metadataAoA = aoa; // Chống lỗi nếu AI quên chữ SPLIT
+                metadataAoA = aoa; 
             }
 
-            // ĐIỂM SÁNG TẠO 2: THUẬT TOÁN GỘP BẢNG SONG SONG (Trái và Phải)
             const finalAoA = [];
             const maxRows = Math.max(metadataAoA.length, tableAoA.length);
 
             for (let i = 0; i < maxRows; i++) {
                 const row = [];
-                // Nửa bên TRÁI (Cột A, B: Thông tin chung)
+                // Nửa bên TRÁI
                 if (i < metadataAoA.length) {
                     row.push(metadataAoA[i][0] || "");
                     row.push(metadataAoA[i][1] || "");
@@ -307,10 +303,10 @@ function triggerAutoDownload(originalName, format, fileContent) {
                     row.push("", "");
                 }
 
-                // Cột C: Khoảng trống ranh giới
+                // Cột C: Khoảng trống
                 row.push("");
 
-                // Nửa bên PHẢI (Cột D trở đi: Bảng chi tiết)
+                // Nửa bên PHẢI
                 if (i < tableAoA.length) {
                     row.push(...tableAoA[i]);
                 }
@@ -318,12 +314,10 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 finalAoA.push(row);
             }
 
-            // Đổ mảng đã gộp ngược lại thành Sheet mới
             const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
             
-            // Đặt độ rộng các cột (Cột C rất hẹp làm ranh giới)
             const wscols = [
-                {wch: 18}, // A: Tiêu đề TT Chung
+                {wch: 22}, // A: Tiêu đề TT Chung
                 {wch: 35}, // B: Nội dung TT Chung
                 {wch: 2},  // C: Cột Ranh giới
                 {wch: 8},  // D: Ln #
@@ -336,11 +330,11 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 {wch: 10}, // K: Price
                 {wch: 10}, // L: Quantity
                 {wch: 8},  // M: U/M
-                {wch: 15}  // N: Sub Total / Total Amount
+                {wch: 15}  // N: Sub Total
             ];
             finalWs['!cols'] = wscols; 
 
-            // THUẬT TOÁN VẼ KHUNG: Chỉ vẽ xung quanh vùng có dữ liệu
+            // THUẬT TOÁN VẼ KHUNG & ĐỔ MÀU THÔNG MINH
             const maxMetadataRow = metadataAoA.length - 1;
             const maxTableRow = tableAoA.length - 1;
             const range = XLSX.utils.decode_range(finalWs['!ref']);
@@ -349,15 +343,23 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 for(let C = range.s.c; C <= range.e.c; ++C) {
                     const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
                     let needBorder = false;
+                    let isHeader = false; // Biến xác định xem ô này có phải là Tiêu đề không
 
-                    // Vẽ khung vùng Thông tin (Cột A, B)
-                    if ((C === 0 || C === 1) && R <= maxMetadataRow) needBorder = true;
-                    // Vẽ khung vùng Bảng chi tiết (Từ cột D đến N)
-                    else if (C >= 3 && C <= 13 && R <= maxTableRow) needBorder = true;
+                    // Xác định vùng thông tin (Cột A, B)
+                    if ((C === 0 || C === 1) && R <= maxMetadataRow) {
+                        needBorder = true;
+                        if (C === 0) isHeader = true; // Cột A luôn là Tiêu đề
+                    }
+                    // Xác định vùng Bảng chi tiết (Từ cột D đến N)
+                    else if (C >= 3 && C <= 13 && R <= maxTableRow) {
+                        needBorder = true;
+                        if (R === 0) isHeader = true; // Dòng đầu tiên (R=0) của bảng luôn là Tiêu đề
+                    }
 
                     if (needBorder) {
-                        if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; // Ô trống vẫn vẽ khung
-                        finalWs[cell_ref].s = {
+                        if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; 
+                        
+                        let cellStyle = {
                             border: {
                                 top: {style: "thin", color: {rgb: "000000"}},
                                 bottom: {style: "thin", color: {rgb: "000000"}},
@@ -366,6 +368,14 @@ function triggerAutoDownload(originalName, format, fileContent) {
                             },
                             alignment: { vertical: "center", wrapText: true }
                         };
+
+                        // Nếu là ô Tiêu đề -> In đậm và tô màu nền xanh biển nhạt (B4C6E7)
+                        if (isHeader) {
+                            cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
+                            cellStyle.font = { bold: true, color: { rgb: "000000" } };
+                        }
+
+                        finalWs[cell_ref].s = cellStyle;
                     }
                 }
             }
