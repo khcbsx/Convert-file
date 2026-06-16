@@ -278,6 +278,15 @@ function removeFile(id) {
 // =====================================================================
 // 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (CHUẨN HÓA MÀU SẮC QUOTA)
 // =====================================================================
+// Đã bổ sung lại hàm dịch File bị thiếu
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
