@@ -1,5 +1,5 @@
 // =====================================================================
-// 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Đã được làm rối để chống bot GitHub)
+// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
@@ -9,22 +9,104 @@ const PREDEFINED_KEYS = [
     "AQ.Ab8R" + "N6LOtYa561irvzt" + "PFBYFnmbks7n6UupZrK7sk9Tf8qdDFQ"
 ];
 
-let UI_API_KEYS = []; 
+// Mảng đối tượng quản lý trạng thái từng Key
+let GLOBAL_KEYS_DB = [];
 
-// --- 2. QUẢN LÝ TRẠNG THÁI HỆ THỐNG ---
-let fileQueue = []; 
-let selectedFormat = 'excel';
-let isProcessing = false;
-let currentKeyIndex = 0; 
+window.onload = () => {
+    // Khởi tạo DB với các Key mặc định
+    PREDEFINED_KEYS.forEach((k, index) => {
+        if(k && k.length > 10) GLOBAL_KEYS_DB.push({ id: index + 1, key: k, source: "Cố định", status: "pending" });
+    });
+    updateKeyBadge();
+    renderKeyDashboard();
+};
 
-const formats = [
-    { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
-    { id: 'excel', name: 'Microsoft Excel', desc: 'EXTRACT DATA', color: 'text-emerald-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm0 16H8v-2h6v2zm2-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
-    { id: 'ppt', name: 'PowerPoint', desc: 'GENERATE SLIDES', color: 'text-orange-400', icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-3 5-3v6zm7 0l-5-3 5-3v6z"/>' },
-    { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
-];
+function updateKeyBadge() {
+    const badge = document.getElementById('keyCounterBadge');
+    const validCount = GLOBAL_KEYS_DB.filter(k => k.status !== 'error').length;
+    
+    badge.textContent = `TỔNG HỢP: ${GLOBAL_KEYS_DB.length} KEY (${validCount} ĐANG SỐNG)`;
+    if (validCount === 0) badge.className = "text-[10px] cursor-pointer hover:bg-red-800/40 transition-colors font-mono bg-red-900/20 text-red-400 px-3 py-1.5 rounded-md border border-red-500/50";
+    else badge.className = "text-[10px] cursor-pointer hover:bg-emerald-800/40 transition-colors font-mono bg-emerald-900/20 text-emerald-400 px-3 py-1.5 rounded-md border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
+}
 
-window.onload = () => { updateKeyBadge(); };
+// Hàm Test 1 Key thực tế trên Google (Gọi lệnh siêu nhỏ chỉ tốn 1 token để check)
+async function pingGeminiKey(keyObj) {
+    keyObj.status = 'testing';
+    renderKeyDashboard();
+    
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyObj.key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } })
+        });
+        
+        if (res.ok) keyObj.status = 'good';
+        else keyObj.status = 'error';
+    } catch (e) {
+        keyObj.status = 'error';
+    }
+    
+    updateKeyBadge();
+    renderKeyDashboard();
+}
+
+async function testAllKeys() {
+    const btn = document.getElementById('btnTestAll');
+    btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
+    
+    // Test chạy song song tất cả các key cùng lúc
+    const testPromises = GLOBAL_KEYS_DB.map(k => pingGeminiKey(k));
+    await Promise.all(testPromises);
+    
+    btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT';
+}
+
+function renderKeyDashboard() {
+    const container = document.getElementById('keyStatusContainer');
+    container.innerHTML = '';
+    
+    GLOBAL_KEYS_DB.forEach(k => {
+        let statusUI = '';
+        if (k.status === 'pending') statusUI = `<span class="flex items-center gap-1.5 text-gray-400"><div class="w-2 h-2 rounded-full bg-gray-500"></div> Chưa rõ</span>`;
+        else if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang Ping...</span>`;
+        else if (k.status === 'good') statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động tốt</span>`;
+        else statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi</span>`;
+
+        const maskedKey = k.key.substring(0, 8) + '••••••••' + k.key.substring(k.key.length - 4);
+
+        container.insertAdjacentHTML('beforeend', `
+            <div class="flex items-center justify-between p-3 rounded-xl border border-gray-700/50 bg-[#161224]/80">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold text-gray-300 w-12">Key ${k.id}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400">${k.source}</span>
+                    <span class="text-xs font-mono text-gray-500">${maskedKey}</span>
+                </div>
+                <div class="text-xs flex items-center gap-4">
+                    ${statusUI}
+                    <button onclick="pingGeminiKey(GLOBAL_KEYS_DB.find(x => x.id === ${k.id}))" class="text-gray-500 hover:text-white p-1" title="Test lại Key này"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+                </div>
+            </div>
+        `);
+    });
+}
+
+function saveApiKeys() {
+    const rawText = document.getElementById('apiKeysInput').value;
+    const keys = rawText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
+    
+    if (keys.length === 0) return;
+
+    let startId = GLOBAL_KEYS_DB.length + 1;
+    keys.forEach(k => {
+        GLOBAL_KEYS_DB.push({ id: startId++, key: k, source: "Mới nạp", status: "pending" });
+    });
+
+    document.getElementById('apiKeysInput').value = '';
+    updateKeyBadge();
+    renderKeyDashboard();
+}
 
 function toggleModal(show) {
     const modal = document.getElementById('apiModal');
@@ -38,23 +120,25 @@ function toggleModal(show) {
     }
 }
 
-function saveApiKeys() {
-    const rawText = document.getElementById('apiKeysInput').value;
-    const keys = rawText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
-    UI_API_KEYS = keys; 
-    updateKeyBadge();
-    toggleModal(false);
-    alert(`Đã nạp tạm thời ${keys.length} Key từ giao diện.`);
+function showErrorToast() {
+    const toast = document.getElementById('errorToast');
+    toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-10');
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-10');
+    }, 6000);
 }
 
-function updateKeyBadge() {
-    const badge = document.getElementById('keyCounterBadge');
-    const validPredefined = PREDEFINED_KEYS.filter(k => k && k.length > 10).length;
-    const totalCount = validPredefined + UI_API_KEYS.length;
-    badge.textContent = `Tổng hợp: ${totalCount} Key`;
-    if (totalCount > 0) badge.className = "text-[10px] font-mono bg-emerald-900/20 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/50";
-    else badge.className = "text-[10px] text-gray-400 font-mono bg-gray-800/50 px-2 py-1 rounded-md border border-gray-700/50";
-}
+// --- 2. QUẢN LÝ TRẠNG THÁI HỆ THỐNG ---
+let fileQueue = []; 
+let selectedFormat = 'excel';
+let isProcessing = false;
+let currentKeyIndex = 0; 
+
+const formats = [
+    { id: 'excel', name: 'Microsoft Excel', desc: 'EXTRACT DATA', color: 'text-emerald-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm0 16H8v-2h6v2zm2-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
+    { id: 'word', name: 'Microsoft Word', desc: 'PRESERVE TABLES', color: 'text-blue-400', icon: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>' },
+    { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
+];
 
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
@@ -94,9 +178,7 @@ const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const processBtn = document.getElementById('processBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-if(clearHistoryBtn) {
-    clearHistoryBtn.addEventListener('click', () => { fileQueue = fileQueue.filter(i => i.status !== 'done'); renderQueue(); });
-}
+if(clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => { fileQueue = fileQueue.filter(i => i.status !== 'done'); renderQueue(); });
 
 function renderQueue() {
     let pCount = 0, cCount = 0, pHTML = '', cHTML = '';
@@ -138,7 +220,7 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - XUẤT CSV CHUẨN MỰC
+// 6. LOGIC AI - THÔNG MINH ĐÁNH DẤU KEY LỖI
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -162,7 +244,6 @@ YÊU CẦU:
 4. XUẤT NGÀY THÁNG BÌNH THƯỜNG.
 
 CẤU TRÚC CSV BẮT BUỘC:
-
 PHẦN 1: THÔNG TIN CHUNG
 Trường thông tin,Giá trị
 [Trích xuất TẤT CẢ các trường thông tin chung ở đầu tài liệu thành 2 cột]
@@ -180,17 +261,23 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
     }
     
-    const activeKeysConfig = [...UI_API_KEYS, ...PREDEFINED_KEYS].filter(k => k && k.length > 10);
-    if(activeKeysConfig.length === 0) throw new Error("Hệ thống trống Key! Hãy nạp Key vào.");
+    // CHỈ LẤY CÁC KEY CHƯA BỊ ĐÁNH DẤU LÀ LỖI ('error')
+    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
     let attempts = 0;
-    while (attempts < activeKeysConfig.length) {
-        const currentKey = activeKeysConfig[currentKeyIndex % activeKeysConfig.length];
+    while (attempts < activeKeys.length) {
+        // Cập nhật lại danh sách lỡ có key nào vừa bị chết ở vòng lặp trước
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+        if(activeKeys.length === 0) break;
+
+        const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
         const modelsToTry = ['gemini-2.5-flash', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
         
+        let success = false;
         for (let model of modelsToTry) {
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
@@ -199,14 +286,22 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
+                    currentKeyObj.status = 'good'; // Chạy mượt -> Đánh dấu tốt
+                    updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 }
-            } catch (e) {}
+            } catch (e) {} // Bỏ qua thử model khác
         }
+        
+        // Nếu thử hết các Model mà vẫn không chạy được -> Key này chính thức hết Quota hoặc bị Khóa
+        currentKeyObj.status = 'error';
+        updateKeyBadge(); renderKeyDashboard();
+
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("TẤT CẢ CÁC KEY SẴN CÓ VÀ KEY VỪA NẠP ĐỀU BÁO LỖI HOẶC HẾT LƯỢT GỌI!");
+    
+    throw new Error("ALL_DEAD");
 }
 
 // =====================================================================
@@ -247,10 +342,16 @@ processBtn.addEventListener('click', async () => {
                 }
             }
         } catch (error) {
-            console.error(error);
-            alert(error.message);
             fileQueue[i].status = 'pending'; 
             renderQueue();
+            
+            // Xử lý thông báo lỗi đẹp mắt và yêu cầu nạp Key
+            if(error.message === "ALL_DEAD") {
+                showErrorToast();
+                toggleModal(true); // Tự động mở bảng quản lý Key lên
+            } else {
+                alert(error.message);
+            }
             break; 
         }
     }
@@ -261,7 +362,7 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. MA TRẬN CHUYỂN ĐỔI BỐ CỤC SONG SONG & KHÓA LỖI NGÀY THÁNG
+// 8. ĐÓNG GÓI EXCEL CHUẨN
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
@@ -270,71 +371,32 @@ function triggerAutoDownload(originalName, format, fileContent) {
         try {
             const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
             const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
-            
             const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
 
             let splitIndex = -1;
             for (let i = 0; i < aoa.length; i++) {
-                if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) {
-                    splitIndex = i; break;
-                }
+                if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) { splitIndex = i; break; }
             }
 
-            let metadataAoA = [];
-            let tableAoA = [];
-
+            let metadataAoA = [], tableAoA = [];
             if (splitIndex !== -1) {
                 metadataAoA = aoa.slice(0, splitIndex).filter(row => row.length > 0 && row.some(c => c !== ""));
                 tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
-            } else {
-                metadataAoA = aoa; 
-            }
+            } else metadataAoA = aoa; 
 
             const finalAoA = [];
             const maxRows = Math.max(metadataAoA.length, tableAoA.length);
-
             for (let i = 0; i < maxRows; i++) {
                 const row = [];
-                // Nửa bên TRÁI
-                if (i < metadataAoA.length) {
-                    row.push(metadataAoA[i][0] || "");
-                    row.push(metadataAoA[i][1] || "");
-                } else {
-                    row.push("", "");
-                }
-
-                // Cột C: Khoảng trống
+                if (i < metadataAoA.length) { row.push(metadataAoA[i][0] || ""); row.push(metadataAoA[i][1] || ""); } else row.push("", "");
                 row.push("");
-
-                // Nửa bên PHẢI
-                if (i < tableAoA.length) {
-                    row.push(...tableAoA[i]);
-                }
-                
+                if (i < tableAoA.length) row.push(...tableAoA[i]);
                 finalAoA.push(row);
             }
 
             const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
-            
-            const wscols = [
-                {wch: 22}, // A: Tiêu đề TT Chung
-                {wch: 35}, // B: Nội dung TT Chung
-                {wch: 2},  // C: Cột Ranh giới
-                {wch: 8},  // D: Ln #
-                {wch: 15}, // E: Item No
-                {wch: 40}, // F: Description
-                {wch: 12}, // G: Ref Order
-                {wch: 15}, // H: Confirmed Date
-                {wch: 15}, // I: Req Due Date
-                {wch: 15}, // J: Terms
-                {wch: 10}, // K: Price
-                {wch: 10}, // L: Quantity
-                {wch: 8},  // M: U/M
-                {wch: 15}  // N: Sub Total
-            ];
-            finalWs['!cols'] = wscols; 
+            finalWs['!cols'] = [{wch: 22}, {wch: 35}, {wch: 2}, {wch: 8}, {wch: 15}, {wch: 40}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 10}, {wch: 8}, {wch: 15}]; 
 
-            // THUẬT TOÁN VẼ KHUNG & ĐỔ MÀU THÔNG MINH
             const maxMetadataRow = metadataAoA.length - 1;
             const maxTableRow = tableAoA.length - 1;
             const range = XLSX.utils.decode_range(finalWs['!ref']);
@@ -343,38 +405,26 @@ function triggerAutoDownload(originalName, format, fileContent) {
                 for(let C = range.s.c; C <= range.e.c; ++C) {
                     const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
                     let needBorder = false;
-                    let isHeader = false; // Biến xác định xem ô này có phải là Tiêu đề không
+                    let isHeader = false; 
 
-                    // Xác định vùng thông tin (Cột A, B)
                     if ((C === 0 || C === 1) && R <= maxMetadataRow) {
                         needBorder = true;
-                        if (C === 0) isHeader = true; // Cột A luôn là Tiêu đề
-                    }
-                    // Xác định vùng Bảng chi tiết (Từ cột D đến N)
-                    else if (C >= 3 && C <= 13 && R <= maxTableRow) {
+                        if (C === 0) isHeader = true; 
+                    } else if (C >= 3 && C <= 13 && R <= maxTableRow) {
                         needBorder = true;
-                        if (R === 0) isHeader = true; // Dòng đầu tiên (R=0) của bảng luôn là Tiêu đề
+                        if (R === 0) isHeader = true; 
                     }
 
                     if (needBorder) {
                         if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; 
-                        
                         let cellStyle = {
-                            border: {
-                                top: {style: "thin", color: {rgb: "000000"}},
-                                bottom: {style: "thin", color: {rgb: "000000"}},
-                                left: {style: "thin", color: {rgb: "000000"}},
-                                right: {style: "thin", color: {rgb: "000000"}}
-                            },
+                            border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
                             alignment: { vertical: "center", wrapText: true }
                         };
-
-                        // Nếu là ô Tiêu đề -> In đậm và tô màu nền xanh biển nhạt (B4C6E7)
                         if (isHeader) {
                             cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
                             cellStyle.font = { bold: true, color: { rgb: "000000" } };
                         }
-
                         finalWs[cell_ref].s = cellStyle;
                     }
                 }
@@ -385,20 +435,13 @@ function triggerAutoDownload(originalName, format, fileContent) {
             XLSX.writeFile(newWb, `${baseName}_converted.xlsx`);
 
         } catch (error) {
-            console.error("Lỗi xuất Excel:", error);
-            alert("Đã xảy ra lỗi trong quá trình đóng gói file Excel.");
+            console.error(error); alert("Đã xảy ra lỗi đóng gói Excel.");
         }
     } else {
         const newExt = format === 'word' ? '.doc' : '.txt';
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const blob = new Blob([bom, fileContent], { type: "text/plain;charset=utf-8" });
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fileContent], { type: "text/plain;charset=utf-8" });
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${baseName}_converted${newExt}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        const a = document.createElement('a'); a.href = url; a.download = `${baseName}_converted${newExt}`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
     }
 }
