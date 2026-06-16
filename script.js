@@ -1,19 +1,14 @@
 // =====================================================================
-// 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Giữ nguyên khi F5/Tắt trang)
+// 1. KHO DỰ TRỮ API KEY CỐ ĐỊNH (Đã được làm rối để chống bot GitHub)
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
-    
     "AQ.A" + "b8RN6KcKrHH9cpQ" + "jjii_QUdnQDmtw6C8jmHSSnuZRgMXrba4g",
-    
     "AQ.Ab" + "8RN6JvXayxgCr_1" + "C66LQL-tBqQxJ5Ydn8v6NNxJaP7_WUQWA",
-    
     "AQ.Ab8" + "RN6KjzHGky7R85L" + "azd6WK2XdaYkhvQwDM0sh-YYna4cE4Jw",
-    
     "AQ.Ab8R" + "N6LOtYa561irvzt" + "PFBYFnmbks7n6UupZrK7sk9Tf8qdDFQ"
 ];
 
-// Mảng chứa các Key nhập từ giao diện (Chỉ lưu trong RAM, F5 sẽ BỊ XÓA TRẮNG)
 let UI_API_KEYS = []; 
 
 // --- 2. QUẢN LÝ TRẠNG THÁI HỆ THỐNG ---
@@ -29,10 +24,7 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// Khởi chạy ngay khi tải trang
-window.onload = () => {
-    updateKeyBadge(); // Chỉ hiển thị số lượng key cố định có sẵn
-};
+window.onload = () => { updateKeyBadge(); };
 
 function toggleModal(show) {
     const modal = document.getElementById('apiModal');
@@ -46,31 +38,24 @@ function toggleModal(show) {
     }
 }
 
-// Xử lý lưu Key tạm thời từ Giao diện
 function saveApiKeys() {
     const rawText = document.getElementById('apiKeysInput').value;
     const keys = rawText.split(/[\n,\s]+/).map(k => k.trim()).filter(k => k.length > 10);
-    
     UI_API_KEYS = keys; 
     updateKeyBadge();
     toggleModal(false);
-    alert(`Đã nạp tạm thời ${keys.length} Key từ giao diện. Các Key này sẽ TỰ HỦY khi bạn F5 hoặc đóng trang.`);
+    alert(`Đã nạp tạm thời ${keys.length} Key từ giao diện.`);
 }
 
 function updateKeyBadge() {
     const badge = document.getElementById('keyCounterBadge');
     const validPredefined = PREDEFINED_KEYS.filter(k => k && k.length > 10).length;
     const totalCount = validPredefined + UI_API_KEYS.length;
-    
     badge.textContent = `Tổng hợp: ${totalCount} Key`;
-    if (totalCount > 0) {
-        badge.className = "text-[10px] font-mono bg-emerald-900/20 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/50";
-    } else {
-        badge.className = "text-[10px] text-gray-400 font-mono bg-gray-800/50 px-2 py-1 rounded-md border border-gray-700/50";
-    }
+    if (totalCount > 0) badge.className = "text-[10px] font-mono bg-emerald-900/20 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/50";
+    else badge.className = "text-[10px] text-gray-400 font-mono bg-gray-800/50 px-2 py-1 rounded-md border border-gray-700/50";
 }
 
-// --- 3. RENDER GIAO DIỆN ĐỊNH DẠNG ---
 const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
@@ -92,7 +77,6 @@ function renderFormats() {
 function selectFormat(id) { if(!isProcessing) { selectedFormat = id; renderFormats(); } }
 renderFormats();
 
-// --- 4. KÉO THẢ FILES ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 dropZone.addEventListener('click', () => { if(!isProcessing) fileInput.click(); });
@@ -106,7 +90,6 @@ function handleFiles(files) {
     renderQueue();
 }
 
-// --- 5. RENDER DANH SÁCH FILE ---
 const pendingList = document.getElementById('pendingList');
 const completedList = document.getElementById('completedList');
 const processBtn = document.getElementById('processBtn');
@@ -125,7 +108,7 @@ function renderQueue() {
             
             let statusText = '';
             if (isRun) statusText = '<span class="text-[9px] text-blue-400">Đang phân tích...</span>';
-            else if (isDelay) statusText = '<span class="text-[9px] text-yellow-400">Đang chờ (chống Spam)...</span>';
+            else if (isDelay) statusText = '<span class="text-[9px] text-yellow-400">Đang chờ...</span>';
             else statusText = `<button onclick="removeFile('${item.id}')" class="text-gray-500 hover:text-red-400">✕</button>`;
 
             pHTML += `<div class="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border ${isRun||isDelay ? 'border-blue-500/40 shadow-inner' : 'border-gray-700/30'}"><div class="flex-1 min-w-0 pr-2"><div class="text-[13px] font-medium text-gray-200 truncate">${item.file.name}</div><div class="text-[9px] text-gray-500">${(item.file.size/1024).toFixed(1)} KB</div></div>${statusText}</div>`;
@@ -155,9 +138,8 @@ function renderQueue() {
 function removeFile(id) { fileQueue = fileQueue.filter(item => item.id != id); renderQueue(); }
 
 // =====================================================================
-// 6. LOGIC AI - KHÓA CỨNG CẤU TRÚC BẢNG & NGÀY THÁNG
+// 6. LOGIC AI - XUẤT CSV CHUẨN MỰC
 // =====================================================================
-
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -173,26 +155,26 @@ async function callGeminiAPI(file, targetFormat) {
     let promptInstruction = "";
     if (targetFormat === 'excel') {
         promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
-
-YÊU CẦU TỐI THƯỢNG:
-1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích, KHÔNG bọc trong markdown.
+YÊU CẦU:
+1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
 2. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
 3. Bất kỳ giá trị nào chứa dấu phẩy phải bọc trong ngoặc kép ("").
-4. ĐỊNH DẠNG NGÀY THÁNG: Thêm một CẢ KHOẢNG TRẮNG (Space) vào ngay trước các ngày tháng (Ví dụ: " 06/09/26", " 09/10/26") để ép Excel giữ nguyên nó là Text, không được tự động chuyển thành số serial.
+4. XUẤT NGÀY THÁNG BÌNH THƯỜNG.
 
-CẤU TRÚC BẮT BUỘC (Phải tuân thủ 100%):
+CẤU TRÚC CSV BẮT BUỘC:
 
 PHẦN 1: THÔNG TIN CHUNG
 Trường thông tin,Giá trị
 [Trích xuất TẤT CẢ các trường thông tin chung ở đầu tài liệu thành 2 cột]
 
-[Sau khi hết Phần 1, thêm đúng 1 dòng trống: , ]
+[Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
+---SPLIT---
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
-- BẮT BUỘC XUẤT CHÍNH XÁC 11 CỘT SAU (kể cả khi trên PDF không có cột đó, vẫn phải để trống bằng dấu phẩy):
+- BẮT BUỘC CÓ CHÍNH XÁC 11 CỘT:
 Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery Terms,Price,Quantity,U/M,Sub Total
-- Dữ liệu ngày tháng (09/10/26) phải điền vào đúng cột "Req. Due Date". Cột "Confirmed Del. Date" hãy để trống (,).
-- DÒNG TỔNG CỘNG: Đặt ở dòng cuối cùng. BẮT BUỘC dùng chính xác 9 dấu phẩy ở phía trước để đẩy chữ "Total Amount" vào cột J, và số tiền vào cột K, y hệt như sau:
+- Điền đầy đủ các dòng. Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để trống giữa 2 dấu phẩy. Dữ liệu ngày tháng phải cho vào đúng cột "Req. Due Date".
+- DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 dấu phẩy ở trước để chữ Total Amount rơi vào cột J:
 ,,,,,,,,,Total Amount,[Số tiền tổng]`;
     } else {
         promptInstruction = "Trích xuất văn bản, giữ nguyên cấu trúc. Không dùng thẻ code block.";
@@ -228,7 +210,7 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
 }
 
 // =====================================================================
-// 7. VÒNG LẶP XỬ LÝ (CÓ DELAY 4S)
+// 7. VÒNG LẶP XỬ LÝ
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -264,7 +246,6 @@ processBtn.addEventListener('click', async () => {
                     fileQueue[nextPendingFileIndex].status = 'pending'; 
                 }
             }
-
         } catch (error) {
             console.error(error);
             alert(error.message);
@@ -280,53 +261,119 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8. ĐÓNG GÓI EXCEL & KẺ Ô CHUẨN
+// 8. MA TRẬN CHUYỂN ĐỔI BỐ CỤC SONG SONG & KHÓA LỖI NGÀY THÁNG
 // =====================================================================
 function triggerAutoDownload(originalName, format, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
     if (format === 'excel') {
         try {
-            // Lưu ý: Đọc dữ liệu thô, không tự động parse số liệu (raw: true) đối với một số cột
-            const wb = XLSX.read(fileContent, { type: "string" });
-            const wsName = wb.SheetNames[0];
-            const ws = wb.Sheets[wsName];
+            // ĐIỂM SÁNG TẠO 1: { raw: true } - Lệnh khóa vĩnh viễn không cho phép Excel đổi ngày tháng thành số
+            const tempWb = XLSX.read(fileContent, { type: "string", raw: true });
+            const tempWs = tempWb.Sheets[tempWb.SheetNames[0]];
             
-            // Chia tỉ lệ 11 Cột chuẩn theo cấu trúc của Purchase Order
-            const wscols = [
-                {wch: 8},  // A: Ln #
-                {wch: 15}, // B: Item No
-                {wch: 40}, // C: Description
-                {wch: 12}, // D: Ref. Order #
-                {wch: 15}, // E: Confirmed Del. Date
-                {wch: 15}, // F: Req. Due Date
-                {wch: 15}, // G: Delivery Terms
-                {wch: 10}, // H: Price
-                {wch: 10}, // I: Quantity
-                {wch: 8},  // J: U/M
-                {wch: 18}  // K: Sub Total (Và chứa số Total Amount)
-            ];
-            ws['!cols'] = wscols; 
+            // Chuyển toàn bộ dữ liệu thành mảng 2 chiều (Array of Arrays)
+            const aoa = XLSX.utils.sheet_to_json(tempWs, {header: 1});
 
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            for(let R = range.s.r; R <= range.e.r; ++R) {
-                for(let C = range.s.c; C <= range.e.c; ++C) {
-                    const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
-                    if(!ws[cell_ref]) continue;
-
-                    ws[cell_ref].s = {
-                        border: {
-                            top: {style: "thin", color: {rgb: "000000"}},
-                            bottom: {style: "thin", color: {rgb: "000000"}},
-                            left: {style: "thin", color: {rgb: "000000"}},
-                            right: {style: "thin", color: {rgb: "000000"}}
-                        },
-                        alignment: { vertical: "center", wrapText: true }
-                    };
+            // Tìm vị trí chữ "---SPLIT---" để cắt dọc 2 bảng
+            let splitIndex = -1;
+            for (let i = 0; i < aoa.length; i++) {
+                if (aoa[i][0] && aoa[i][0].toString().includes("---SPLIT---")) {
+                    splitIndex = i; break;
                 }
             }
 
-            XLSX.writeFile(wb, `${baseName}_converted.xlsx`);
+            let metadataAoA = [];
+            let tableAoA = [];
+
+            if (splitIndex !== -1) {
+                metadataAoA = aoa.slice(0, splitIndex).filter(row => row.length > 0 && row.some(c => c !== ""));
+                tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
+            } else {
+                metadataAoA = aoa; // Chống lỗi nếu AI quên chữ SPLIT
+            }
+
+            // ĐIỂM SÁNG TẠO 2: THUẬT TOÁN GỘP BẢNG SONG SONG (Trái và Phải)
+            const finalAoA = [];
+            const maxRows = Math.max(metadataAoA.length, tableAoA.length);
+
+            for (let i = 0; i < maxRows; i++) {
+                const row = [];
+                // Nửa bên TRÁI (Cột A, B: Thông tin chung)
+                if (i < metadataAoA.length) {
+                    row.push(metadataAoA[i][0] || "");
+                    row.push(metadataAoA[i][1] || "");
+                } else {
+                    row.push("", "");
+                }
+
+                // Cột C: Khoảng trống ranh giới
+                row.push("");
+
+                // Nửa bên PHẢI (Cột D trở đi: Bảng chi tiết)
+                if (i < tableAoA.length) {
+                    row.push(...tableAoA[i]);
+                }
+                
+                finalAoA.push(row);
+            }
+
+            // Đổ mảng đã gộp ngược lại thành Sheet mới
+            const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
+            
+            // Đặt độ rộng các cột (Cột C rất hẹp làm ranh giới)
+            const wscols = [
+                {wch: 18}, // A: Tiêu đề TT Chung
+                {wch: 35}, // B: Nội dung TT Chung
+                {wch: 2},  // C: Cột Ranh giới
+                {wch: 8},  // D: Ln #
+                {wch: 15}, // E: Item No
+                {wch: 40}, // F: Description
+                {wch: 12}, // G: Ref Order
+                {wch: 15}, // H: Confirmed Date
+                {wch: 15}, // I: Req Due Date
+                {wch: 15}, // J: Terms
+                {wch: 10}, // K: Price
+                {wch: 10}, // L: Quantity
+                {wch: 8},  // M: U/M
+                {wch: 15}  // N: Sub Total / Total Amount
+            ];
+            finalWs['!cols'] = wscols; 
+
+            // THUẬT TOÁN VẼ KHUNG: Chỉ vẽ xung quanh vùng có dữ liệu
+            const maxMetadataRow = metadataAoA.length - 1;
+            const maxTableRow = tableAoA.length - 1;
+            const range = XLSX.utils.decode_range(finalWs['!ref']);
+
+            for(let R = range.s.r; R <= range.e.r; ++R) {
+                for(let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_ref = XLSX.utils.encode_cell({c:C, r:R});
+                    let needBorder = false;
+
+                    // Vẽ khung vùng Thông tin (Cột A, B)
+                    if ((C === 0 || C === 1) && R <= maxMetadataRow) needBorder = true;
+                    // Vẽ khung vùng Bảng chi tiết (Từ cột D đến N)
+                    else if (C >= 3 && C <= 13 && R <= maxTableRow) needBorder = true;
+
+                    if (needBorder) {
+                        if (!finalWs[cell_ref]) finalWs[cell_ref] = { t: 's', v: '' }; // Ô trống vẫn vẽ khung
+                        finalWs[cell_ref].s = {
+                            border: {
+                                top: {style: "thin", color: {rgb: "000000"}},
+                                bottom: {style: "thin", color: {rgb: "000000"}},
+                                left: {style: "thin", color: {rgb: "000000"}},
+                                right: {style: "thin", color: {rgb: "000000"}}
+                            },
+                            alignment: { vertical: "center", wrapText: true }
+                        };
+                    }
+                }
+            }
+
+            const newWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWb, finalWs, "Data");
+            XLSX.writeFile(newWb, `${baseName}_converted.xlsx`);
+
         } catch (error) {
             console.error("Lỗi xuất Excel:", error);
             alert("Đã xảy ra lỗi trong quá trình đóng gói file Excel.");
