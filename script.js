@@ -1,5 +1,5 @@
 // =====================================================================
-// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE
+// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (ĐÃ FIX LỖI 404 MODEL)
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
@@ -9,57 +9,78 @@ const PREDEFINED_KEYS = [
     "AQ.Ab8R" + "N6LOtYa561irvzt" + "PFBYFnmbks7n6UupZrK7sk9Tf8qdDFQ"
 ];
 
-// Mảng đối tượng quản lý trạng thái từng Key
 let GLOBAL_KEYS_DB = [];
 
 window.onload = () => {
-    // Khởi tạo DB với các Key mặc định
+    // Nạp Key vào DB
     PREDEFINED_KEYS.forEach((k, index) => {
         if(k && k.length > 10) GLOBAL_KEYS_DB.push({ id: index + 1, key: k, source: "Cố định", status: "pending" });
     });
     updateKeyBadge();
     renderKeyDashboard();
+    
+    // Tính năng mới: Tự động quét kiểm tra sức khỏe ngầm ngay khi tải trang (F5)
+    testAllKeysSilently();
 };
 
 function updateKeyBadge() {
     const badge = document.getElementById('keyCounterBadge');
-    const validCount = GLOBAL_KEYS_DB.filter(k => k.status !== 'error').length;
+    const goodCount = GLOBAL_KEYS_DB.filter(k => k.status === 'good').length;
+    const pendingCount = GLOBAL_KEYS_DB.filter(k => k.status === 'pending').length;
     
-    badge.textContent = `TỔNG HỢP: ${GLOBAL_KEYS_DB.length} KEY (${validCount} ĐANG SỐNG)`;
-    if (validCount === 0) badge.className = "text-[10px] cursor-pointer hover:bg-red-800/40 transition-colors font-mono bg-red-900/20 text-red-400 px-3 py-1.5 rounded-md border border-red-500/50";
-    else badge.className = "text-[10px] cursor-pointer hover:bg-emerald-800/40 transition-colors font-mono bg-emerald-900/20 text-emerald-400 px-3 py-1.5 rounded-md border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
+    if (pendingCount > 0 && goodCount === 0) {
+        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (ĐANG QUÉT...)`;
+        badge.className = "text-[10px] cursor-pointer hover:bg-gray-800 transition-colors font-mono bg-gray-900 text-gray-400 px-3 py-1.5 rounded-md border border-gray-600";
+    } else if (goodCount > 0) {
+        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (${goodCount} ĐANG SỐNG)`;
+        badge.className = "text-[10px] cursor-pointer hover:bg-emerald-800/40 transition-colors font-mono bg-emerald-900/20 text-emerald-400 px-3 py-1.5 rounded-md border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
+    } else {
+        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (CHẾT HẾT)`;
+        badge.className = "text-[10px] cursor-pointer hover:bg-red-800/40 transition-colors font-mono bg-red-900/20 text-red-400 px-3 py-1.5 rounded-md border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]";
+    }
 }
 
-// Hàm Test 1 Key thực tế trên Google (Gọi lệnh siêu nhỏ chỉ tốn 1 token để check)
+// HÀM TEST THÔNG MINH (Dò qua nhiều Model để tránh lỗi 404)
 async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyObj.key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } })
-        });
-        
-        if (res.ok) keyObj.status = 'good';
-        else keyObj.status = 'error';
-    } catch (e) {
-        keyObj.status = 'error';
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    let isAlive = false;
+
+    for (let model of modelsToTry) {
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyObj.key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
+            });
+            
+            if (res.ok) {
+                isAlive = true;
+                break; // Nếu có model chạy được, lập tức thoát vòng lặp, xác nhận Key còn sống
+            }
+        } catch (e) {
+            // Lỗi mạng, tiếp tục thử model khác
+        }
     }
     
+    keyObj.status = isAlive ? 'good' : 'error';
     updateKeyBadge();
     renderKeyDashboard();
 }
 
+// Chạy test ngầm không block giao diện
+async function testAllKeysSilently() {
+    const testPromises = GLOBAL_KEYS_DB.map(k => pingGeminiKey(k));
+    await Promise.all(testPromises);
+}
+
+// Chạy test khi bấm nút
 async function testAllKeys() {
     const btn = document.getElementById('btnTestAll');
     btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
-    
-    // Test chạy song song tất cả các key cùng lúc
-    const testPromises = GLOBAL_KEYS_DB.map(k => pingGeminiKey(k));
-    await Promise.all(testPromises);
-    
+    await testAllKeysSilently();
     btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT';
 }
 
@@ -69,8 +90,8 @@ function renderKeyDashboard() {
     
     GLOBAL_KEYS_DB.forEach(k => {
         let statusUI = '';
-        if (k.status === 'pending') statusUI = `<span class="flex items-center gap-1.5 text-gray-400"><div class="w-2 h-2 rounded-full bg-gray-500"></div> Chưa rõ</span>`;
-        else if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang Ping...</span>`;
+        if (k.status === 'pending') statusUI = `<span class="flex items-center gap-1.5 text-gray-400"><div class="w-2 h-2 rounded-full bg-gray-500"></div> Chờ quét...</span>`;
+        else if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò...</span>`;
         else if (k.status === 'good') statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động tốt</span>`;
         else statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi</span>`;
 
@@ -100,7 +121,9 @@ function saveApiKeys() {
 
     let startId = GLOBAL_KEYS_DB.length + 1;
     keys.forEach(k => {
-        GLOBAL_KEYS_DB.push({ id: startId++, key: k, source: "Mới nạp", status: "pending" });
+        const newKeyObj = { id: startId++, key: k, source: "Mới nạp", status: "pending" };
+        GLOBAL_KEYS_DB.push(newKeyObj);
+        pingGeminiKey(newKeyObj); // Tự động test luôn key vừa nhập
     });
 
     document.getElementById('apiKeysInput').value = '';
