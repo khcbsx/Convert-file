@@ -45,7 +45,8 @@ async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Chỉ dùng 2 model chuẩn và ổn định nhất, bỏ các model ảo gây lỗi 404
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
     let isAlive = false;
 
     for (let model of modelsToTry) {
@@ -56,12 +57,13 @@ async function pingGeminiKey(keyObj) {
                 body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
             });
             
-            if (res.ok) {
+            // ĐIỂM CỐT LÕI: OK (200) hoặc 429 (Rate Limit) hoặc 500+ (Server Busy) đều chứng tỏ KEY HỢP LỆ!
+            if (res.ok || res.status === 429 || res.status >= 500) {
                 isAlive = true;
-                break; // Nếu có model chạy được, lập tức thoát vòng lặp, xác nhận Key còn sống
+                break; 
             }
         } catch (e) {
-            // Lỗi mạng, tiếp tục thử model khác
+            // Lỗi mạng, tiếp tục dò model khác
         }
     }
     
@@ -70,10 +72,12 @@ async function pingGeminiKey(keyObj) {
     renderKeyDashboard();
 }
 
-// Chạy test ngầm không block giao diện
+// Chạy test ngầm TUẦN TỰ để tránh ăn gậy 429 của Google
 async function testAllKeysSilently() {
-    const testPromises = GLOBAL_KEYS_DB.map(k => pingGeminiKey(k));
-    await Promise.all(testPromises);
+    for (let k of GLOBAL_KEYS_DB) {
+        await pingGeminiKey(k);
+        await new Promise(resolve => setTimeout(resolve, 800)); // Nghỉ 0.8s giữa mỗi lần gõ cửa
+    }
 }
 
 // Chạy test khi bấm nút
@@ -289,7 +293,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO TOÀN 100% NGUYÊN BẢN)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (SỬA LỖI OAN SAI KEY)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -333,8 +337,10 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash']; // Chỉ dùng 2 model chuẩn
         
+        let isKeyDead = true; // Mặc định nghi ngờ
+
         for (let model of modelsToTry) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
@@ -349,16 +355,22 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                     currentKeyObj.status = 'good';
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
+                } else if (response.status === 429 || response.status >= 500) {
+                    isKeyDead = false; // Key đang quá tải/Rate Limit, tha bổng không gạch đỏ
                 }
-            } catch (e) {} 
+            } catch (e) {
+                isKeyDead = false; // Lỗi rớt mạng, không gạch đỏ
+            } 
         }
         
-        currentKeyObj.status = 'error';
+        // Chỉ kết án tử hình Key nếu thực sự bị báo 403, 400
+        if (isKeyDead) currentKeyObj.status = 'error';
+        
         updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("ALL_DEAD");
+    throw new Error("Tạm thời quá tải Server. Hệ thống sẽ tự thử lại hoặc bạn hãy chờ vài giây!");
 }
 
 // =====================================================================
@@ -383,8 +395,10 @@ YÊU CẦU TỐI THƯỢNG:
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
         
+        let isKeyDead = true; 
+
         for (let model of modelsToTry) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
@@ -399,16 +413,21 @@ YÊU CẦU TỐI THƯỢNG:
                     currentKeyObj.status = 'good'; 
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
+                } else if (response.status === 429 || response.status >= 500) {
+                    isKeyDead = false; 
                 }
-            } catch (e) {} 
+            } catch (e) {
+                isKeyDead = false; 
+            } 
         }
         
-        currentKeyObj.status = 'error';
+        if (isKeyDead) currentKeyObj.status = 'error';
+        
         updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
         attempts++;
     }
-    throw new Error("ALL_DEAD");
+    throw new Error("Tạm thời quá tải Server. Hệ thống sẽ tự thử lại hoặc bạn hãy chờ vài giây!");
 }
 
 // =====================================================================
