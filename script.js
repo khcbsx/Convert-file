@@ -1,5 +1,5 @@
 // =====================================================================
-// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (TỐI ƯU 100% QUOTA)
+// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (CÓ BỘ ĐẾM CÔNG TƠ MÉT)
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
@@ -12,9 +12,18 @@ const PREDEFINED_KEYS = [
 let GLOBAL_KEYS_DB = [];
 
 window.onload = () => {
-    // Nạp Key vào DB, MẶC ĐỊNH MÀU XANH TẤT CẢ (Sẵn sàng) để tiết kiệm lượt gọi
+    // Nạp Key vào DB, gắn thêm biến đếm usageCount và maxLimit (Cài 20 lượt/ngày theo yêu cầu)
     PREDEFINED_KEYS.forEach((k, index) => {
-        if(k && k.length > 10) GLOBAL_KEYS_DB.push({ id: index + 1, key: k, source: "Cố định", status: "good" });
+        if(k && k.length > 10) {
+            GLOBAL_KEYS_DB.push({ 
+                id: index + 1, 
+                key: k, 
+                source: "Cố định", 
+                status: "good",
+                usageCount: 0,
+                maxLimit: 20 // Giới hạn lượt gọi/ngày cho mỗi Key
+            });
+        }
     });
     updateKeyBadge();
     renderKeyDashboard();
@@ -55,7 +64,13 @@ async function pingGeminiKey(keyObj) {
         } catch (e) { }
     }
     
-    keyObj.status = isAlive ? 'good' : 'error';
+    // Khôi phục trạng thái tùy theo việc có quá hạn mức hay chưa
+    if (isAlive) {
+        keyObj.status = (keyObj.usageCount >= keyObj.maxLimit) ? 'error' : 'good';
+    } else {
+        keyObj.status = 'error';
+    }
+
     updateKeyBadge();
     renderKeyDashboard();
 }
@@ -64,7 +79,6 @@ async function testAllKeys() {
     const btn = document.getElementById('btnTestAll');
     btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
     
-    // Test tuần tự thủ công
     for (let k of GLOBAL_KEYS_DB) {
         await pingGeminiKey(k);
         await new Promise(resolve => setTimeout(resolve, 800)); 
@@ -79,9 +93,15 @@ function renderKeyDashboard() {
     
     GLOBAL_KEYS_DB.forEach(k => {
         let statusUI = '';
-        if (k.status === 'testing') statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò...</span>`;
-        else if (k.status === 'good') statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động / Sẵn sàng</span>`;
-        else statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi</span>`;
+        let counterBadge = `<span class="ml-2 font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40 text-gray-300">(${k.usageCount}/${k.maxLimit})</span>`;
+        
+        if (k.status === 'testing') {
+            statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò... ${counterBadge}</span>`;
+        } else if (k.status === 'good') {
+            statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động ${counterBadge}</span>`;
+        } else {
+            statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi ${counterBadge}</span>`;
+        }
 
         const maskedKey = k.key.substring(0, 8) + '••••••••' + k.key.substring(k.key.length - 4);
 
@@ -109,8 +129,14 @@ function saveApiKeys() {
 
     let startId = GLOBAL_KEYS_DB.length + 1;
     keys.forEach(k => {
-        const newKeyObj = { id: startId++, key: k, source: "Mới nạp", status: "good" };
-        GLOBAL_KEYS_DB.push(newKeyObj);
+        GLOBAL_KEYS_DB.push({ 
+            id: startId++, 
+            key: k, 
+            source: "Mới nạp", 
+            status: "good",
+            usageCount: 0,
+            maxLimit: 20
+        });
     });
 
     document.getElementById('apiKeysInput').value = '';
@@ -159,10 +185,8 @@ function checkFileTypeAndUpdateUI() {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     
     if (pendingFiles.length === 0) {
-        // Nếu không có file nào đang chờ, hiện lại tất cả các nút
         allowedFormats = ['excel', 'word', 'ppt', 'pdf']; 
     } else {
-        // Lấy file đầu tiên trong hàng đợi làm chuẩn để thiết lập UI
         const firstFileName = pendingFiles[0].file.name.toLowerCase();
         
         if (firstFileName.endsWith('.pdf') || firstFileName.match(/\.(jpg|jpeg|png)$/)) {
@@ -171,11 +195,11 @@ function checkFileTypeAndUpdateUI() {
         } 
         else if (firstFileName.endsWith('.docx') || firstFileName.endsWith('.doc')) {
             allowedFormats = ['excel'];
-            selectedFormat = 'excel'; // Ép người dùng chỉ được chọn Excel
+            selectedFormat = 'excel';
         } 
         else if (firstFileName.endsWith('.xlsx') || firstFileName.endsWith('.xls') || firstFileName.endsWith('.csv')) {
             allowedFormats = ['word'];
-            selectedFormat = 'word'; // Ép người dùng chỉ được chọn Word
+            selectedFormat = 'word'; 
         }
     }
     renderFormats();
@@ -185,7 +209,6 @@ const formatContainer = document.getElementById('formatContainer');
 function renderFormats() {
     formatContainer.innerHTML = '';
     formats.forEach(format => {
-        // CHỈ RENDER các nút nằm trong danh sách cho phép
         if (allowedFormats.includes(format.id)) {
             const isSelected = selectedFormat === format.id;
             const baseClass = isSelected ? 'flex items-center justify-between p-3 text-left rounded-xl bg-white text-black shadow-lg cursor-pointer transition-transform scale-[1.02]' : 'flex items-center gap-3 p-3 text-left rounded-xl border border-gray-700/50 bg-[#161224]/80 hover:bg-[#201a33] cursor-pointer text-gray-300';
@@ -204,7 +227,6 @@ function renderFormats() {
 }
 
 function selectFormat(id) { 
-    // Chặn người dùng cố tình click vào định dạng không được phép
     if(!isProcessing && allowedFormats.includes(id)) { 
         selectedFormat = id; 
         renderFormats(); 
@@ -222,7 +244,7 @@ fileInput.addEventListener('change', (e) => { if (!isProcessing && e.target.file
 
 function handleFiles(files) {
     Array.from(files).forEach(f => fileQueue.push({ id: Date.now() + Math.random(), file: f, status: 'pending', formatTarget: null }));
-    checkFileTypeAndUpdateUI(); // Tự động quét đuôi file và kích hoạt Bộ lọc Giao diện
+    checkFileTypeAndUpdateUI(); 
     renderQueue();
 }
 
@@ -271,14 +293,13 @@ function renderQueue() {
 }
 function removeFile(id) { 
     fileQueue = fileQueue.filter(item => item.id != id); 
-    checkFileTypeAndUpdateUI(); // Nếu người dùng xóa file, phải check lại xem cần mở khóa giao diện không
+    checkFileTypeAndUpdateUI(); 
     renderQueue(); 
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (CHUẨN HÓA MÀU SẮC QUOTA)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ)
 // =====================================================================
-// Đã bổ sung lại hàm dịch File bị thiếu
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -287,6 +308,7 @@ function fileToBase64(file) {
         reader.onerror = error => reject(error);
     });
 }
+
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
@@ -311,19 +333,25 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
 - DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 dấu phẩy ở trước để chữ Total Amount rơi vào cột J:
 ,,,,,,,,,Total Amount,[Số tiền tổng]`;
 
-    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
-    let attempts = 0;
-    while (attempts < activeKeys.length) {
-        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    while (true) {
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        // Đưa 1.5 lên đầu vì nó ổn định nhất, không bị lỗi 404
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash']; 
         
-        let isKeyDead = true; // Mặc định là TỬ HÌNH
+        // KIỂM TRA LƯỚI BẢO VỆ 1: Chạm đỉnh giới hạn thì gạch đỏ ngay lập tức, khỏi gọi tốn công!
+        if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
+            currentKeyObj.status = 'error';
+            updateKeyBadge(); renderKeyDashboard();
+            currentKeyIndex++;
+            continue; // Chuyển sang Key tiếp theo
+        }
+
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash']; 
+        let isKeyDead = true; 
 
         for (let model of modelsToTry) {
             try {
@@ -333,39 +361,49 @@ Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
                 });
 
+                // Có gửi Request lên server là phải cộng 1 lượt vào công tơ mét
+                currentKeyObj.usageCount++;
+
                 if (response.ok) {
-                    // CÓ KẾT QUẢ -> XÓA ÁN, CHUYỂN MÀU XANH
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
-                    currentKeyObj.status = 'good'; 
+                    
+                    // Nếu gọi xong mà đồng hồ chạm đỉnh thì gạch đỏ luôn chuẩn bị cho lượt tới
+                    if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
+                        currentKeyObj.status = 'error';
+                    } else {
+                        currentKeyObj.status = 'good';
+                    }
+
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
+                else if (response.status === 429) {
+                    // Nếu Google dập lỗi 429 giữa chừng, ép công tơ mét lên max để khóa sổ vĩnh viễn
+                    currentKeyObj.usageCount = currentKeyObj.maxLimit;
+                    isKeyDead = true;
+                    break;
+                }
                 else if (response.status >= 500) {
-                    // CHỈ tha bổng nếu Google bị SẬP SERVER (500, 503). 
-                    // Lỗi 429 (Hết Quota RPD) đi qua đây sẽ không được tha bổng -> isKeyDead vẫn = true!
-                    isKeyDead = false; 
+                    isKeyDead = false; // Lỗi server thì tha bổng (dù vẫn bị trừ 1 lượt ở trên)
                     break;
                 }
             } catch (e) {
-                // Rớt mạng, chặn QC (ERR_FAILED)... kệ nó, thử model tiếp theo.
             } 
         }
         
-        // CHỐT KẾT QUẢ: Nếu gọi cả 2 model mà dính 429 (Hết Quota) hoặc 403 (Bị khóa) -> ĐỔI SANG ĐỎ!
         if (isKeyDead) {
             currentKeyObj.status = 'error';
         }
         
         updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
-        attempts++;
     }
     throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
 }
 
 // =====================================================================
-// 6B. LOGIC AI - ĐƯỜNG RAY WORD (CHUẨN HÓA MÀU SẮC QUOTA)
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ)
 // =====================================================================
 async function callGeminiAPI_Word(file) {
     const base64Data = await fileToBase64(file);
@@ -377,17 +415,23 @@ YÊU CẦU TỐI THƯỢNG:
 4. Đảm bảo bảng <table> có thuộc tính border="1" style="border-collapse: collapse; width: 100%;".
 5. TUYỆT ĐỐI KHÔNG bọc trong markdown (không dùng \`\`\`html), KHÔNG giải thích, CHỈ XUẤT RA mã HTML.`;
 
-    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
-    let attempts = 0;
-    while (attempts < activeKeys.length) {
-        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error');
+    while (true) {
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
         if(activeKeys.length === 0) break;
 
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash'];
         
+        if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
+            currentKeyObj.status = 'error';
+            updateKeyBadge(); renderKeyDashboard();
+            currentKeyIndex++;
+            continue; 
+        }
+
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash'];
         let isKeyDead = true; 
 
         for (let model of modelsToTry) {
@@ -398,13 +442,26 @@ YÊU CẦU TỐI THƯỢNG:
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
                 });
 
+                currentKeyObj.usageCount++;
+
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
-                    currentKeyObj.status = 'good'; 
+                    
+                    if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
+                        currentKeyObj.status = 'error';
+                    } else {
+                        currentKeyObj.status = 'good';
+                    }
+
                     updateKeyBadge(); renderKeyDashboard();
                     return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
                 } 
+                else if (response.status === 429) {
+                    currentKeyObj.usageCount = currentKeyObj.maxLimit;
+                    isKeyDead = true;
+                    break;
+                }
                 else if (response.status >= 500) {
                     isKeyDead = false; 
                     break;
@@ -419,13 +476,12 @@ YÊU CẦU TỐI THƯỢNG:
         
         updateKeyBadge(); renderKeyDashboard();
         currentKeyIndex++; 
-        attempts++;
     }
     throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
 }
 
 // =====================================================================
-// 7. NGƯỜI GÁC CỔNG: BỘ ĐIỀU PHỐI VÀ CHIA MẺ 5 FILE
+// 7. CỖ MÁY DÂY CHUYỀN (CHỈ CHẠY 1 FILE, NGHỈ 60 GIÂY) -> BẤT TỬ RPM
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -435,20 +491,18 @@ processBtn.addEventListener('click', async () => {
     processBtn.disabled = true;
     
     const targetFormat = selectedFormat;
-    let filesProcessedInCurrentBatch = 0; 
 
     for (let i = 0; i < fileQueue.length; i++) {
         if (fileQueue[i].status !== 'pending') continue;
 
         fileQueue[i].status = 'processing';
         
-        processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG XỬ LÝ (${filesProcessedInCurrentBatch + 1}/5 CỦA MẺ)...</span>`;
+        processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ĐANG PHÂN TÍCH FILE...</span>`;
         renderQueue();
 
         try {
             let aiGeneratedText = "";
             
-            // BẺ GHI LUỒNG CHẠY (Phân phối công việc)
             if (targetFormat === 'excel') {
                 aiGeneratedText = await callGeminiAPI_Excel(fileQueue[i].file);
                 fileQueue[i].formatTarget = targetFormat;
@@ -464,25 +518,24 @@ processBtn.addEventListener('click', async () => {
                 triggerAutoDownload_Word(fileQueue[i].file.name, aiGeneratedText);
             }
             
-            filesProcessedInCurrentBatch++; 
-
+            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 60 GIÂY MỚI LÀM TIẾP
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
-                    if (filesProcessedInCurrentBatch >= 5) {
-                        fileQueue[nextPendingFileIndex].status = 'delaying';
-                        processBtn.innerHTML = `<span class="flex items-center justify-center gap-2 text-yellow-400"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ RESET BĂNG THÔNG API...</span>`;
-                        renderQueue();
-                        await new Promise(resolve => setTimeout(resolve, 60000)); 
-                        filesProcessedInCurrentBatch = 0; 
-                        fileQueue[nextPendingFileIndex].status = 'pending';
-                    } else {
-                        fileQueue[nextPendingFileIndex].status = 'delaying';
-                        renderQueue();
-                        await new Promise(resolve => setTimeout(resolve, 3000)); 
-                        fileQueue[nextPendingFileIndex].status = 'pending'; 
-                    }
+                    fileQueue[nextPendingFileIndex].status = 'delaying';
+                    
+                    // Hiện nút Vàng đếm ngược nghỉ ngơi
+                    processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all bg-yellow-600/20 text-yellow-500 border border-yellow-500/50 cursor-not-allowed";
+                    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
+                    
+                    renderQueue();
+                    
+                    // Đồng hồ đếm ngược 60s
+                    await new Promise(resolve => setTimeout(resolve, 60000)); 
+                    
+                    fileQueue[nextPendingFileIndex].status = 'pending';
+                    processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[#1f192e] text-gray-400 border border-gray-700/50";
                 }
             }
         } catch (error) {
