@@ -19,18 +19,17 @@ window.onload = () => {
                 id: index + 1, 
                 key: k, 
                 source: "Cố định", 
-                status: "testing", // Để testing để hệ thống tự đi dò model ngay khi load
+                status: "good", // Đổi thành good để sẵn sàng chạy luôn, không cần test
                 usageCount: 0,
                 maxLimit: 20,
-                bestModel: null
+                bestModel: 'gemini-2.5-flash' // Mặc định luôn bản 2.5
             });
         }
     });
     updateKeyBadge();
     renderKeyDashboard();
     
-    // Tự động quét Model ngầm khi vừa tải trang
-    testAllKeys();
+    // ĐÃ XÓA DÒNG testAllKeys();
 };
 
 function updateKeyBadge() {
@@ -88,17 +87,6 @@ async function pingGeminiKey(keyObj) {
     renderKeyDashboard();
 }
 
-async function testAllKeys() {
-    const btn = document.getElementById('btnTestAll');
-    if(btn) { btn.disabled = true; btn.innerHTML = 'ĐANG DÒ MODEL...'; }
-    
-    for (let k of GLOBAL_KEYS_DB) {
-        await pingGeminiKey(k);
-        await new Promise(resolve => setTimeout(resolve, 800)); 
-    }
-    
-    if(btn) { btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT'; }
-}
 
 function renderKeyDashboard() {
     const container = document.getElementById('keyStatusContainer');
