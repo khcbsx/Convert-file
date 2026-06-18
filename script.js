@@ -54,12 +54,7 @@ async function pingGeminiKey(keyObj) {
     // Danh sách các model để hệ thống tự dò xem Key này hợp với cái nào (Ưu tiên 2.5 trước)
     const modelsToTry = [
         'gemini-2.5-flash',
-        'gemini-2.5-flash-latest',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-pro',
-        'gemini-1.5-pro-latest',
-        'gemini-pro'
+        'gemini-2.5-flash-latest'
     ];
     let isAlive = false;
     let detectedModel = null;
