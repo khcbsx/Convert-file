@@ -1,5 +1,5 @@
 // =====================================================================
-// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (CÓ BỘ ĐẾM CÔNG TƠ MÉT)
+// 1. KHO API KEY & TRẠM QUẢN LÝ SỨC KHỎE (TỰ ĐỘNG DÒ MODEL)
 // =====================================================================
 const PREDEFINED_KEYS = [
     "AQ." + "Ab8RN6Ixv7w35Mma" + "fHrBeEgwW3ni0Vpyw6teNU0SAcv1AWq-jw",
@@ -12,21 +12,25 @@ const PREDEFINED_KEYS = [
 let GLOBAL_KEYS_DB = [];
 
 window.onload = () => {
-    // Nạp Key vào DB, gắn thêm biến đếm usageCount và maxLimit (Cài 20 lượt/ngày theo yêu cầu)
+    // Nạp Key vào DB, gắn thêm biến đếm usageCount, maxLimit và bestModel
     PREDEFINED_KEYS.forEach((k, index) => {
         if(k && k.length > 10) {
             GLOBAL_KEYS_DB.push({ 
                 id: index + 1, 
                 key: k, 
                 source: "Cố định", 
-                status: "good",
+                status: "testing", // Để testing để hệ thống tự đi dò model ngay khi load
                 usageCount: 0,
-                maxLimit: 20 // Giới hạn lượt gọi/ngày cho mỗi Key
+                maxLimit: 20,
+                bestModel: null
             });
         }
     });
     updateKeyBadge();
     renderKeyDashboard();
+    
+    // Tự động quét Model ngầm khi vừa tải trang
+    testAllKeys();
 };
 
 function updateKeyBadge() {
@@ -37,37 +41,52 @@ function updateKeyBadge() {
         badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (${goodCount} SẴN SÀNG)`;
         badge.className = "text-[10px] cursor-pointer hover:bg-emerald-800/40 transition-colors font-mono bg-emerald-900/20 text-emerald-400 px-3 py-1.5 rounded-md border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
     } else {
-        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (CHẾT HẾT)`;
+        badge.textContent = `TỔNG: ${GLOBAL_KEYS_DB.length} KEY (CHẾT HẾT / ĐANG DÒ)`;
         badge.className = "text-[10px] cursor-pointer hover:bg-red-800/40 transition-colors font-mono bg-red-900/20 text-red-400 px-3 py-1.5 rounded-md border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]";
     }
 }
 
-// HÀM TEST KHI NGƯỜI DÙNG CHỦ ĐỘNG BẤM NÚT
+// HÀM TEST KHI NGƯỜI DÙNG CHỦ ĐỘNG BẤM NÚT (HỆ THỐNG RADAR)
 async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    // Đã loại bỏ multi-models, chỉ dùng bản ổn định nhất
-    const model = 'gemini-1.5-flash';
+    // Danh sách các model để hệ thống tự dò xem Key này hợp với cái nào (Ưu tiên 2.5 trước)
+    const modelsToTry = [
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro',
+        'gemini-1.5-pro-latest',
+        'gemini-pro'
+    ];
     let isAlive = false;
+    let detectedModel = null;
 
-    try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyObj.key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
-        });
-        
-        if (res.ok || res.status === 429 || res.status >= 500) {
-            isAlive = true; 
-        }
-    } catch (e) { }
+    for (let model of modelsToTry) {
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyObj.key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
+            });
+            
+            // Nếu Google trả về thành công hoặc lỗi quá tải, chứng tỏ Model này CÓ TỒN TẠI
+            if (res.ok || res.status === 429 || res.status >= 500) {
+                isAlive = true;
+                detectedModel = model;
+                break; // Tìm thấy model sống, thoát vòng lặp ngay!
+            }
+        } catch (e) { }
+    }
     
-    // Khôi phục trạng thái tùy theo việc có quá hạn mức hay chưa
     if (isAlive) {
         keyObj.status = (keyObj.usageCount >= keyObj.maxLimit) ? 'error' : 'good';
+        keyObj.bestModel = detectedModel; // Ghi nhớ model tốt nhất
     } else {
         keyObj.status = 'error';
+        keyObj.bestModel = null;
     }
 
     updateKeyBadge();
@@ -76,14 +95,14 @@ async function pingGeminiKey(keyObj) {
 
 async function testAllKeys() {
     const btn = document.getElementById('btnTestAll');
-    btn.disabled = true; btn.innerHTML = 'ĐANG QUÉT...';
+    if(btn) { btn.disabled = true; btn.innerHTML = 'ĐANG DÒ MODEL...'; }
     
     for (let k of GLOBAL_KEYS_DB) {
         await pingGeminiKey(k);
         await new Promise(resolve => setTimeout(resolve, 800)); 
     }
     
-    btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT';
+    if(btn) { btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT'; }
 }
 
 function renderKeyDashboard() {
@@ -94,12 +113,24 @@ function renderKeyDashboard() {
         let statusUI = '';
         let counterBadge = `<span class="ml-2 font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40 text-gray-300">(${k.usageCount}/${k.maxLimit})</span>`;
         
+        // TEM DÁN NHÃN MODEL HIỂN THỊ LÊN GIAO DIỆN
+        let modelBadge = '';
+        if (k.bestModel) {
+            let shortName = k.bestModel.replace('gemini-', '').toUpperCase();
+            // Phân loại màu sắc tem: 2.5 màu Xanh (VIP), 1.5 màu Tím (Thường)
+            if (k.bestModel.includes('2.5')) {
+                modelBadge = `<span class="ml-2 bg-blue-900/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold" title="Hỗ trợ xử lý thông minh đời mới">🚀 ${shortName}</span>`;
+            } else {
+                modelBadge = `<span class="ml-2 bg-purple-900/30 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold" title="Hỗ trợ xử lý cơ bản, siêu ổn định">⚡ ${shortName}</span>`;
+            }
+        }
+
         if (k.status === 'testing') {
             statusUI = `<span class="flex items-center gap-1.5 text-blue-400"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang dò... ${counterBadge}</span>`;
         } else if (k.status === 'good') {
-            statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Hoạt động ${counterBadge}</span>`;
+            statusUI = `<span class="flex items-center gap-1.5 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Sẵn sàng ${modelBadge} ${counterBadge}</span>`;
         } else {
-            statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota / Lỗi ${counterBadge}</span>`;
+            statusUI = `<span class="flex items-center gap-1.5 text-red-400 font-bold"><div class="w-2 h-2 rounded-full bg-red-500"></div> Hết Quota/Lỗi ${modelBadge} ${counterBadge}</span>`;
         }
 
         const maskedKey = k.key.substring(0, 8) + '••••••••' + k.key.substring(k.key.length - 4);
@@ -132,15 +163,15 @@ function saveApiKeys() {
             id: startId++, 
             key: k, 
             source: "Mới nạp", 
-            status: "good",
+            status: "testing",
             usageCount: 0,
-            maxLimit: 20
+            maxLimit: 20,
+            bestModel: null
         });
     });
 
     document.getElementById('apiKeysInput').value = '';
-    updateKeyBadge();
-    renderKeyDashboard();
+    testAllKeys(); // Nạp xong tự động dò model luôn
 }
 
 function toggleModal(show) {
@@ -295,7 +326,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ & FIX LỖI CỘT)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -308,8 +339,6 @@ function fileToBase64(file) {
 
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
-    
-    // ĐÃ FIX BÊ TÔNG VÀO PROMPT ĐỂ TRÁNH LỖI XÔ LỆCH CỘT
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 YÊU CẦU NGHIÊM NGẶT:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
@@ -341,15 +370,15 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
 
     while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        
         let retryCount = 0;
         let fileProcessedSuccessfully = false;
 
-        // VÒNG LẶP RETRY: Trung thành với 1 Key, lỗi 503/Mạng thì thử lại tối đa 3 lần
         while (retryCount < 3) {
             try {
-                // CHỈ DÙNG 1.5-FLASH CHO ỔN ĐỊNH 100%
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyObj.key}`, {
+                // SỬ DỤNG MODEL ĐÃ ĐƯỢC DÒ THÀNH CÔNG CHO KEY NÀY (HOẶC MẶC ĐỊNH LÀ 1.5 NẾU CHƯA CÓ)
+                const modelToUse = currentKeyObj.bestModel || 'gemini-1.5-flash';
+                
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
@@ -373,27 +402,22 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
                 else if (response.status === 429 || response.status === 403) {
-                    // GOOGLE BÁO HẾT QUOTA -> GẠCH ĐỎ KEY NGAY VÀ THOÁT RETRY
                     currentKeyObj.usageCount = currentKeyObj.maxLimit;
                     currentKeyObj.status = 'error';
                     break;
                 }
                 else {
-                    // LỖI 500/503 -> NGHỈ 4S VÀ THỬ LẠI CHÍNH KEY ĐÓ
                     retryCount++;
                     await new Promise(r => setTimeout(r, 4000));
                 }
             } catch (e) {
-                // LỖI MẠNG -> NGHỈ 4S VÀ THỬ LẠI CHÍNH KEY ĐÓ
                 retryCount++;
                 await new Promise(r => setTimeout(r, 4000));
             } 
         }
         
-        // Nếu file xong thì thoát luôn vòng lặp đổi Key
         if (fileProcessedSuccessfully) break;
 
-        // Nếu rớt xuống đây tức là Key đã thử 3 lần không được hoặc dính 429. Chuyển Key!
         updateKeyBadge(); renderKeyDashboard();
         activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
         currentKeyIndex++; 
@@ -403,7 +427,7 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
 }
 
 // =====================================================================
-// 6B. LOGIC AI - ĐƯỜNG RAY WORD (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ)
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD
 // =====================================================================
 async function callGeminiAPI_Word(file) {
     const base64Data = await fileToBase64(file);
@@ -420,14 +444,14 @@ YÊU CẦU TỐI THƯỢNG:
 
     while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
-        
         let retryCount = 0;
         let fileProcessedSuccessfully = false;
 
         while (retryCount < 3) {
             try {
-                // CHỈ DÙNG 1.5-FLASH
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyObj.key}`, {
+                const modelToUse = currentKeyObj.bestModel || 'gemini-1.5-flash';
+                
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
@@ -437,9 +461,7 @@ YÊU CẦU TỐI THƯỢNG:
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
                     
-                    // CỘNG ĐỒNG HỒ TRUNG THỰC
                     currentKeyObj.usageCount++;
-                    
                     if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
                         currentKeyObj.status = 'error';
                     } else {
