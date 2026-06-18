@@ -47,22 +47,21 @@ async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+    // Đã loại bỏ multi-models, chỉ dùng bản ổn định nhất
+    const model = 'gemini-1.5-flash';
     let isAlive = false;
 
-    for (let model of modelsToTry) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyObj.key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
-            });
-            
-            if (res.ok || res.status === 429 || res.status >= 500) {
-                isAlive = true; break; 
-            }
-        } catch (e) { }
-    }
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyObj.key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
+        });
+        
+        if (res.ok || res.status === 429 || res.status >= 500) {
+            isAlive = true; 
+        }
+    } catch (e) { }
     
     // Khôi phục trạng thái tùy theo việc có quá hạn mức hay chưa
     if (isAlive) {
@@ -177,10 +176,8 @@ const formats = [
     { id: 'pdf', name: 'PDF Document', desc: 'CONVERT TO PDF', color: 'text-red-400', icon: '<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM14 11h1V8.5h-1V11z"/>' }
 ];
 
-// Khởi tạo mảng lưu các định dạng được phép hiển thị
 let allowedFormats = ['excel', 'word', 'ppt', 'pdf'];
 
-// HÀM MỚI: BỘ LỌC GIAO DIỆN ĐỘNG
 function checkFileTypeAndUpdateUI() {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
     
@@ -298,7 +295,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ & FIX LỖI CỘT)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -311,95 +308,98 @@ function fileToBase64(file) {
 
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
+    
+    // ĐÃ FIX BÊ TÔNG VÀO PROMPT ĐỂ TRÁNH LỖI XÔ LỆCH CỘT
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
-YÊU CẦU:
+YÊU CẦU NGHIÊM NGẶT:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
-2. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
-3. Bất kỳ giá trị nào chứa dấu phẩy phải bọc trong ngoặc kép ("").
+2. MỌI GIÁ TRỊ ĐỀU PHẢI ĐƯỢC BỌC TRONG DẤU NGOẶC KÉP (""). VD: "Giá trị 1","Giá trị 2"
+3. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
 4. XUẤT NGÀY THÁNG BÌNH THƯỜNG.
 
 CẤU TRÚC CSV BẮT BUỘC:
 PHẦN 1: THÔNG TIN CHUNG
-Trường thông tin,Giá trị
+"Trường thông tin","Giá trị"
 [Trích xuất TẤT CẢ các trường thông tin chung ở đầu tài liệu thành 2 cột]
 
 [Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
----SPLIT---
+"---SPLIT---"
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
-- BẮT BUỘC CÓ CHÍNH XÁC 11 CỘT:
-Ln #,Item No,Description,Ref. Order #,Confirmed Del. Date,Req. Due Date,Delivery Terms,Price,Quantity,U/M,Sub Total
-- Điền đầy đủ các dòng. Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để trống giữa 2 dấu phẩy. Dữ liệu ngày tháng phải cho vào đúng cột "Req. Due Date".
-- DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 dấu phẩy ở trước để chữ Total Amount rơi vào cột J:
-,,,,,,,,,Total Amount,[Số tiền tổng]`;
+- BẮT BUỘC MỖI DÒNG PHẢI CÓ CHÍNH XÁC 11 CỘT (tương đương 10 dấu phẩy ngăn cách).
+- Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để rỗng: "",""
+- ĐẶC BIỆT CHÚ Ý: Phải tách rõ ràng ngày tháng vào cột "Req. Due Date" và phương thức (như OCN FOB) vào cột "Delivery Terms". TUYỆT ĐỐI KHÔNG GỘP CHUNG VÀO 1 CỘT.
+
+"Ln #","Item No","Description","Ref. Order #","Confirmed Del. Date","Req. Due Date","Delivery Terms","Price","Quantity","U/M","Sub Total"
+[Dữ liệu các dòng điền vào đây, đảm bảo đủ 11 cột, bọc trong ngoặc kép]
+
+- DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 cột rỗng ở trước để chữ Total Amount rơi vào đúng cột thứ 10:
+"","","","","","","","","","Total Amount","[Số tiền tổng]"`;
 
     let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
-    while (true) {
-        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
-        if(activeKeys.length === 0) break;
-
+    while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
         
-        // KIỂM TRA LƯỚI BẢO VỆ 1: Chạm đỉnh giới hạn thì gạch đỏ ngay lập tức, khỏi gọi tốn công!
-        if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
-            currentKeyObj.status = 'error';
-            updateKeyBadge(); renderKeyDashboard();
-            currentKeyIndex++;
-            continue; // Chuyển sang Key tiếp theo
-        }
+        let retryCount = 0;
+        let fileProcessedSuccessfully = false;
 
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash']; 
-        let isKeyDead = true; 
-
-        for (let model of modelsToTry) {
+        // VÒNG LẶP RETRY: Trung thành với 1 Key, lỗi 503/Mạng thì thử lại tối đa 3 lần
+        while (retryCount < 3) {
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
+                // CHỈ DÙNG 1.5-FLASH CHO ỔN ĐỊNH 100%
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
                 });
 
-                // Có gửi Request lên server là phải cộng 1 lượt vào công tơ mét
-                currentKeyObj.usageCount++;
-
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
                     
-                    // Nếu gọi xong mà đồng hồ chạm đỉnh thì gạch đỏ luôn chuẩn bị cho lượt tới
+                    // NGUYÊN TẮC THÉP: THÀNH CÔNG MỚI ĐƯỢC CỘNG 1 VÀO ĐỒNG HỒ
+                    currentKeyObj.usageCount++;
+                    
                     if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
-                        currentKeyObj.status = 'error';
+                        currentKeyObj.status = 'error'; 
                     } else {
                         currentKeyObj.status = 'good';
                     }
 
                     updateKeyBadge(); renderKeyDashboard();
+                    fileProcessedSuccessfully = true;
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
-                else if (response.status === 429) {
-                    // Nếu Google dập lỗi 429 giữa chừng, ép công tơ mét lên max để khóa sổ vĩnh viễn
+                else if (response.status === 429 || response.status === 403) {
+                    // GOOGLE BÁO HẾT QUOTA -> GẠCH ĐỎ KEY NGAY VÀ THOÁT RETRY
                     currentKeyObj.usageCount = currentKeyObj.maxLimit;
-                    isKeyDead = true;
+                    currentKeyObj.status = 'error';
                     break;
                 }
-                else if (response.status >= 500) {
-                    isKeyDead = false; // Lỗi server thì tha bổng (dù vẫn bị trừ 1 lượt ở trên)
-                    break;
+                else {
+                    // LỖI 500/503 -> NGHỈ 4S VÀ THỬ LẠI CHÍNH KEY ĐÓ
+                    retryCount++;
+                    await new Promise(r => setTimeout(r, 4000));
                 }
             } catch (e) {
+                // LỖI MẠNG -> NGHỈ 4S VÀ THỬ LẠI CHÍNH KEY ĐÓ
+                retryCount++;
+                await new Promise(r => setTimeout(r, 4000));
             } 
         }
         
-        if (isKeyDead) {
-            currentKeyObj.status = 'error';
-        }
-        
+        // Nếu file xong thì thoát luôn vòng lặp đổi Key
+        if (fileProcessedSuccessfully) break;
+
+        // Nếu rớt xuống đây tức là Key đã thử 3 lần không được hoặc dính 429. Chuyển Key!
         updateKeyBadge(); renderKeyDashboard();
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
         currentKeyIndex++; 
     }
-    throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
+
+    if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 }
 
 // =====================================================================
@@ -418,35 +418,27 @@ YÊU CẦU TỐI THƯỢNG:
     let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 
-    while (true) {
-        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
-        if(activeKeys.length === 0) break;
-
+    while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
         
-        if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
-            currentKeyObj.status = 'error';
-            updateKeyBadge(); renderKeyDashboard();
-            currentKeyIndex++;
-            continue; 
-        }
+        let retryCount = 0;
+        let fileProcessedSuccessfully = false;
 
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash'];
-        let isKeyDead = true; 
-
-        for (let model of modelsToTry) {
+        while (retryCount < 3) {
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKeyObj.key}`, {
+                // CHỈ DÙNG 1.5-FLASH
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
                 });
 
-                currentKeyObj.usageCount++;
-
                 if (response.ok) {
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
+                    
+                    // CỘNG ĐỒNG HỒ TRUNG THỰC
+                    currentKeyObj.usageCount++;
                     
                     if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
                         currentKeyObj.status = 'error';
@@ -455,33 +447,36 @@ YÊU CẦU TỐI THƯỢNG:
                     }
 
                     updateKeyBadge(); renderKeyDashboard();
+                    fileProcessedSuccessfully = true;
                     return rawText.replace(/```html\n/g, "").replace(/```/g, "").trim(); 
                 } 
-                else if (response.status === 429) {
+                else if (response.status === 429 || response.status === 403) {
                     currentKeyObj.usageCount = currentKeyObj.maxLimit;
-                    isKeyDead = true;
+                    currentKeyObj.status = 'error';
                     break;
                 }
-                else if (response.status >= 500) {
-                    isKeyDead = false; 
-                    break;
+                else {
+                    retryCount++;
+                    await new Promise(r => setTimeout(r, 4000));
                 }
             } catch (e) {
+                retryCount++;
+                await new Promise(r => setTimeout(r, 4000));
             } 
         }
         
-        if (isKeyDead) {
-            currentKeyObj.status = 'error';
-        }
-        
+        if (fileProcessedSuccessfully) break;
+
         updateKeyBadge(); renderKeyDashboard();
+        activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
         currentKeyIndex++; 
     }
-    throw new Error("Tất cả API Key đều đã hết Quota hoặc bị lỗi mạng!");
+
+    if(activeKeys.length === 0) throw new Error("ALL_DEAD");
 }
 
 // =====================================================================
-// 7. CỖ MÁY DÂY CHUYỀN (CHỈ CHẠY 1 FILE, NGHỈ 60 GIÂY) -> BẤT TỬ RPM
+// 7. CỖ MÁY DÂY CHUYỀN (CHỈ CHẠY 1 FILE, NGHỈ 90 GIÂY) -> BẤT TỬ RPM
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -518,21 +513,21 @@ processBtn.addEventListener('click', async () => {
                 triggerAutoDownload_Word(fileQueue[i].file.name, aiGeneratedText);
             }
             
-            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 60 GIÂY MỚI LÀM TIẾP
+            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 90 GIÂY MỚI LÀM TIẾP
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
                     fileQueue[nextPendingFileIndex].status = 'delaying';
                     
-                    // Hiện nút Vàng đếm ngược nghỉ ngơi
+                    // Hiện nút Vàng đếm ngược nghỉ ngơi 90s
                     processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all bg-yellow-600/20 text-yellow-500 border border-yellow-500/50 cursor-not-allowed";
-                    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
+                    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 90S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
                     
                     renderQueue();
                     
-                    // Đồng hồ đếm ngược 60s
-                    await new Promise(resolve => setTimeout(resolve, 60000)); 
+                    // ĐỒNG HỒ ĐẾM NGƯỢC 90 GIÂY (90000 ms)
+                    await new Promise(resolve => setTimeout(resolve, 90000)); 
                     
                     fileQueue[nextPendingFileIndex].status = 'pending';
                     processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[#1f192e] text-gray-400 border border-gray-700/50";
@@ -557,7 +552,7 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8A. ĐÓNG GÓI EXCEL (BẢO TOÀN 100% NGUYÊN BẢN)
+// 8A. ĐÓNG GÓI EXCEL (DỌN DẸP DẤU NGOẶC KÉP)
 // =====================================================================
 function triggerAutoDownload_Excel(originalName, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
@@ -577,15 +572,33 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
             tableAoA = aoa.slice(splitIndex + 1).filter(row => row.length > 0 && row.some(c => c !== ""));
         } else metadataAoA = aoa; 
 
+        // XỬ LÝ TABLE: Dọn dẹp dấu nháy kép thừa và ép kiểu số
         for (let i = 0; i < tableAoA.length; i++) {
             [7, 8, 10].forEach(colIdx => {
                 if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
-                    let val = tableAoA[i][colIdx].toString().trim();
+                    let val = tableAoA[i][colIdx].toString().replace(/"/g, '').trim();
                     if (!isNaN(parseFloat(val)) && !val.includes("/")) { 
                         tableAoA[i][colIdx] = parseFloat(val);
+                    } else {
+                        tableAoA[i][colIdx] = val;
                     }
                 }
             });
+            // Quét xóa dấu ngoặc kép cho tất cả các ô chữ còn lại trong bảng
+            for (let j = 0; j < tableAoA[i].length; j++) {
+                if (typeof tableAoA[i][j] === 'string') {
+                    tableAoA[i][j] = tableAoA[i][j].replace(/"/g, '').trim();
+                }
+            }
+        }
+        
+        // Quét xóa dấu ngoặc kép cho phần Metadata
+        for(let i = 0; i < metadataAoA.length; i++) {
+            for(let j = 0; j < metadataAoA[i].length; j++) {
+                if (typeof metadataAoA[i][j] === 'string') {
+                    metadataAoA[i][j] = metadataAoA[i][j].replace(/"/g, '').trim();
+                }
+            }
         }
 
         const finalAoA = [];
