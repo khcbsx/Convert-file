@@ -12,14 +12,13 @@ const PREDEFINED_KEYS = [
 let GLOBAL_KEYS_DB = [];
 
 window.onload = () => {
-    // Nạp Key vào DB, gắn thêm biến đếm usageCount, maxLimit và bestModel
     PREDEFINED_KEYS.forEach((k, index) => {
         if(k && k.length > 10) {
             GLOBAL_KEYS_DB.push({ 
                 id: index + 1, 
                 key: k, 
                 source: "Cố định", 
-                status: "good", // Để testing để hệ thống tự đi dò model ngay khi load
+                status: "good",
                 usageCount: 0,
                 maxLimit: 20,
                 bestModel: 'gemini-2.5-flash'
@@ -28,8 +27,6 @@ window.onload = () => {
     });
     updateKeyBadge();
     renderKeyDashboard();
-    
-    // Đã xóa auto test
 };
 
 function updateKeyBadge() {
@@ -45,12 +42,10 @@ function updateKeyBadge() {
     }
 }
 
-// HÀM TEST KHI NGƯỜI DÙNG CHỦ ĐỘNG BẤM NÚT (HỆ THỐNG RADAR)
 async function pingGeminiKey(keyObj) {
     keyObj.status = 'testing';
     renderKeyDashboard();
     
-    // Danh sách các model để hệ thống tự dò xem Key này hợp với cái nào (Ưu tiên 2.5 trước)
     const modelsToTry = [
         'gemini-2.5-flash',
         'gemini-2.5-flash-latest'
@@ -66,18 +61,17 @@ async function pingGeminiKey(keyObj) {
                 body: JSON.stringify({ contents: [{ parts: [{ text: "1" }] }], generationConfig: { maxOutputTokens: 1 } })
             });
             
-            // Nếu Google trả về thành công hoặc lỗi quá tải, chứng tỏ Model này CÓ TỒN TẠI
             if (res.ok || res.status === 429 || res.status >= 500) {
                 isAlive = true;
                 detectedModel = model;
-                break; // Tìm thấy model sống, thoát vòng lặp ngay!
+                break;
             }
         } catch (e) { }
     }
     
     if (isAlive) {
         keyObj.status = (keyObj.usageCount >= keyObj.maxLimit) ? 'error' : 'good';
-        keyObj.bestModel = detectedModel; // Ghi nhớ model tốt nhất
+        keyObj.bestModel = detectedModel; 
     } else {
         keyObj.status = 'error';
         keyObj.bestModel = null;
@@ -107,11 +101,9 @@ function renderKeyDashboard() {
         let statusUI = '';
         let counterBadge = `<span class="ml-2 font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40 text-gray-300">(${k.usageCount}/${k.maxLimit})</span>`;
         
-        // TEM DÁN NHÃN MODEL HIỂN THỊ LÊN GIAO DIỆN
         let modelBadge = '';
         if (k.bestModel) {
             let shortName = k.bestModel.replace('gemini-', '').toUpperCase();
-            // Phân loại màu sắc tem: 2.5 màu Xanh (VIP), 1.5 màu Tím (Thường)
             if (k.bestModel.includes('2.5')) {
                 modelBadge = `<span class="ml-2 bg-blue-900/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold" title="Hỗ trợ xử lý thông minh đời mới">🚀 ${shortName}</span>`;
             } else {
@@ -321,7 +313,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (UNIVERSAL MAPPING PROMPT)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢN TỰ DO ĐỌC CỘT THEO ẢNH)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -335,45 +327,31 @@ function fileToBase64(file) {
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
     
-    // NÂNG CẤP BỘ NÃO: Dạy AI cách Dịch thuật đa Layout (Universal Mapping)
+    // NÂNG CẤP BỘ NÃO: DẠY AI TRÍCH XUẤT CỘT LINH HOẠT THEO HÌNH ẢNH
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 YÊU CẦU NGHIÊM NGẶT:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
 2. MỌI GIÁ TRỊ ĐỀU PHẢI ĐƯỢC BỌC TRONG DẤU NGOẶC KÉP (""). VD: "Giá trị 1","Giá trị 2"
-3. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND', 'US DOLLAR').
+3. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND', 'US DOLLAR', 'EU').
 4. XUẤT NGÀY THÁNG BÌNH THƯỜNG.
 
 CẤU TRÚC CSV BẮT BUỘC:
 PHẦN 1: THÔNG TIN CHUNG
 "Trường thông tin","Giá trị"
-- BỎ QUA (Tuyệt đối không lấy): "Issuer" (Company Name, Subsidiary, Address, Phone...), "Your reference", "Requisitioner".
-- GỘP CHUNG toàn bộ thông tin nhà cung cấp (Supplier ID, Tên công ty, Địa chỉ) thành 1 dòng duy nhất. VD: "Supplier","WW00000395 THAI BINH GROUP 5A XUYEN A HIGHWAY DI AN WARD..."
-- GỘP CHUNG toàn bộ thông tin nơi nhận hàng (Deliver To Company Name, Address...) thành 1 dòng duy nhất. VD: "Deliver To","ACUSHNET KOREA CO. LTD Acushnet Korea Company Limited MQ Logistics..."
-- TRÍCH XUẤT các trường cơ bản nếu có trong ảnh: "PURCHASE ORDER NO." (hoặc P.O. NUMBER), "PAGE", "Order date" (hoặc DATE OF ISSUE), "Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer", "SUPPLIER A/C NO.".
+- BỎ QUA (Tuyệt đối không lấy): "Issuer", "Your reference", "Requisitioner".
+- GỘP CHUNG: Thông tin nhà cung cấp (Supplier / Leveranciersgegevens) thành 1 dòng.
+- DELIVER TO (Nơi nhận hàng / Afleveradres / Delivery Address): Trích xuất CHÍNH XÁC NHỮNG CHỮ CÓ TRONG Ô ĐÓ.
+- TRÍCH XUẤT THÊM CÁC TRƯỜNG NÀY (Nếu có): "PURCHASE ORDER NO." (hoặc Nummer/P.O. NUMBER), "PAGE", "Order date" (hoặc Datum/DATE OF ISSUE), "Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer", "SUPPLIER A/C NO." (hoặc Leverancier).
 
 [Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
 "---SPLIT---"
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
-- DÙ BẢNG TRONG ẢNH CÓ LAYOUT NHƯ THẾ NÀO (ÍT HAY NHIỀU CỘT), BẮT BUỘC PHẢI QUY CHUẨN VỀ 11 CỘT BÊN DƯỚI. Cột nào trong ảnh không có thì để rỗng "".
-QUY TẮC ĐỐI CHIẾU CỘT:
-- "Ln #": Lấy từ Line/Ln (nếu có).
-- "Item No": Lấy từ 'Item No', 'ACUSHNET PROD No.' hoặc 'Acushnet Sku'.
-- "Description": Lấy từ 'Description' hoặc 'DESCRIPTION OF GOODS'.
-- "Ref. Order #": (Nếu có).
-- "Confirmed Del. Date": (Nếu có).
-- "Req. Due Date": Lấy từ 'Req. Due Date' hoặc 'REQ'D BY'.
-- "Delivery Terms": Lấy từ 'Delivery Terms'. Nếu bảng có cột 'UNIT' thứ hai (chứa giá trị như 'EACH', 'EA') thì ghi vào đây.
-- "Price": Lấy từ 'Price', 'Purch price', 'Unit Costs' hoặc 'PRICE US DOLLAR'.
-- "Quantity": Lấy từ 'Quantity' hoặc 'QUANTITY'.
-- "U/M": Lấy từ 'U/M', 'Unit' hoặc cột 'UNIT' đầu tiên.
-- "Sub Total": Lấy từ 'Sub Total' hoặc 'Total Value US$'. NẾU BẢNG GỐC BỊ KHUYẾT CỘT NÀY, hãy tự làm toán: (Price * Quantity) để điền vào đây.
-
-"Ln #","Item No","Description","Ref. Order #","Confirmed Del. Date","Req. Due Date","Delivery Terms","Price","Quantity","U/M","Sub Total"
-[Dữ liệu các dòng điền vào đây, đảm bảo đủ 11 cột, bọc trong ngoặc kép]
-
-- DÒNG TỔNG CỘNG: Ở dưới cùng, dùng 9 cột rỗng ở trước để chữ Total Amount rơi vào đúng cột thứ 10:
-"","","","","","","","","","Total Amount","[Số tiền tổng]"`;
+- LƯU Ý TỐI QUAN TRỌNG: KHÔNG ÉP BUỘC THEO KHUÔN MẪU 11 CỘT CỐ ĐỊNH NÀO CẢ!
+- BƯỚC 1: Hãy nhìn vào bảng dữ liệu chính trong ảnh. Trích xuất chính xác các TÊN CỘT (Header) có trong bảng đó để làm dòng đầu tiên của phần 2. Số lượng cột và tên cột phải hoàn toàn khớp với ảnh (VD: Ảnh có 8 cột thì xuất đúng 8 cột).
+- BƯỚC 2: Trích xuất các dòng dữ liệu tương ứng với các cột đó.
+- LƯU Ý VỀ DÒNG GHI CHÚ: Nếu trong bảng có các dòng chỉ chứa văn bản (Ví dụ: "EXF - 10TH SEPT '26"...), hãy nhét chữ đó vào cột mô tả (Ví dụ: Description / Omschrijving), các cột khác để rỗng.
+- DÒNG TỔNG CỘNG: Nếu cuối bảng có ghi chú tổng tiền (Ví dụ: Total), hãy sắp xếp số tiền đó rơi vào đúng cột chứa Đơn giá / Thành tiền của bảng. Cột nào không có giá trị thì để rỗng ("").`;
 
     let activeKeys = GLOBAL_KEYS_DB.filter(k => k.status !== 'error' && k.usageCount < k.maxLimit);
     if(activeKeys.length === 0) throw new Error("ALL_DEAD");
@@ -386,7 +364,6 @@ QUY TẮC ĐỐI CHIẾU CỘT:
 
         while (retryCount < 3) {
             try {
-                // CHUYỂN SANG DÙNG 2.5-FLASH ĐỂ XỬ LÝ BẢNG BIỂU THÔNG MINH HƠN
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -397,7 +374,6 @@ QUY TẮC ĐỐI CHIẾU CỘT:
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
                     
-                    // CÔNG TƠ MÉT TRUNG THỰC: NHẬN FILE XONG MỚI TRỪ TIỀN
                     currentKeyObj.usageCount++;
                     
                     if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
@@ -411,13 +387,11 @@ QUY TẮC ĐỐI CHIẾU CỘT:
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
                 else if (response.status === 429 || response.status === 403) {
-                    // GOOGLE BÁO HẾT QUOTA THÌ TỬ HÌNH KEY NÀY NGAY
                     currentKeyObj.usageCount = currentKeyObj.maxLimit;
                     currentKeyObj.status = 'error';
                     break; 
                 }
                 else {
-                    // Lỗi 500, 503, 404: Mạng lag/Google sập -> KHÔNG CỘNG SỐ. Nghỉ 4s rồi thử lại
                     retryCount++;
                     await new Promise(r => setTimeout(r, 4000)); 
                 }
@@ -438,7 +412,7 @@ QUY TẮC ĐỐI CHIẾU CỘT:
 }
 
 // =====================================================================
-// 6B. LOGIC AI - ĐƯỜNG RAY WORD (SỬ DỤNG MODEL 2.5-FLASH)
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD 
 // =====================================================================
 async function callGeminiAPI_Word(file) {
     const base64Data = await fileToBase64(file);
@@ -461,7 +435,6 @@ YÊU CẦU TỐI THƯỢNG:
 
         while (retryCount < 3) {
             try {
-                // CHUYỂN SANG DÙNG 2.5-FLASH ĐỂ XỬ LÝ VĂN BẢN THÔNG MINH HƠN
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -546,20 +519,17 @@ processBtn.addEventListener('click', async () => {
                 triggerAutoDownload_Word(fileQueue[i].file.name, aiGeneratedText);
             }
             
-            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 60 GIÂY MỚI LÀM TIẾP
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
                     fileQueue[nextPendingFileIndex].status = 'delaying';
                     
-                    // Hiện nút Vàng đếm ngược nghỉ ngơi 60s
                     processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all bg-yellow-600/20 text-yellow-500 border border-yellow-500/50 cursor-not-allowed";
                     processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
                     
                     renderQueue();
                     
-                    // ĐỒNG HỒ ĐẾM NGƯỢC 60 GIÂY
                     await new Promise(resolve => setTimeout(resolve, 60000)); 
                     
                     fileQueue[nextPendingFileIndex].status = 'pending';
@@ -585,7 +555,7 @@ processBtn.addEventListener('click', async () => {
 });
 
 // =====================================================================
-// 8A. ĐÓNG GÓI EXCEL (DỌN DẸP DẤU NGOẶC KÉP)
+// 8A. ĐÓNG GÓI EXCEL (BẢNG ĐỘNG - DỌN DẸP DẤU NGOẶC KÉP)
 // =====================================================================
 function triggerAutoDownload_Excel(originalName, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
@@ -606,21 +576,18 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
         } else metadataAoA = aoa; 
 
         // XỬ LÝ TABLE: Dọn dẹp dấu nháy kép thừa và ép kiểu số
+        let tableColCount = 0;
         for (let i = 0; i < tableAoA.length; i++) {
-            [7, 8, 10].forEach(colIdx => {
-                if (tableAoA[i][colIdx] !== undefined && tableAoA[i][colIdx] !== "") {
-                    let val = tableAoA[i][colIdx].toString().replace(/"/g, '').trim();
-                    if (!isNaN(parseFloat(val)) && !val.includes("/")) { 
-                        tableAoA[i][colIdx] = parseFloat(val);
-                    } else {
-                        tableAoA[i][colIdx] = val;
-                    }
-                }
-            });
-            // Quét xóa dấu ngoặc kép cho tất cả các ô chữ còn lại trong bảng
+            if(tableAoA[i].length > tableColCount) tableColCount = tableAoA[i].length;
+
             for (let j = 0; j < tableAoA[i].length; j++) {
-                if (typeof tableAoA[i][j] === 'string') {
-                    tableAoA[i][j] = tableAoA[i][j].replace(/"/g, '').trim();
+                if (tableAoA[i][j] !== undefined && tableAoA[i][j] !== "") {
+                    let val = tableAoA[i][j].toString().replace(/"/g, '').trim();
+                    if (!isNaN(parseFloat(val)) && !val.includes("/")) { 
+                        tableAoA[i][j] = parseFloat(val);
+                    } else {
+                        tableAoA[i][j] = val;
+                    }
                 }
             }
         }
@@ -645,7 +612,13 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
         }
 
         const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
-        finalWs['!cols'] = [{wch: 22}, {wch: 35}, {wch: 2}, {wch: 8}, {wch: 15}, {wch: 40}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 10}, {wch: 8}, {wch: 15}]; 
+        
+        // Tạo cột width linh hoạt dựa trên số lượng cột thực tế của bảng
+        let colWidths = [{wch: 22}, {wch: 35}, {wch: 2}]; // 3 cột đầu cho metadata
+        for(let c=0; c < tableColCount; c++) {
+            colWidths.push({wch: 15}); // Chiều rộng cơ bản cho các cột bảng
+        }
+        finalWs['!cols'] = colWidths; 
 
         const maxMetadataRow = metadataAoA.length - 1;
         const maxTableRow = tableAoA.length - 1;
@@ -657,10 +630,13 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
                 let needBorder = false;
                 let isHeader = false; 
 
+                // Viền cho metadata
                 if ((C === 0 || C === 1) && R <= maxMetadataRow) {
                     needBorder = true;
                     if (C === 0) isHeader = true; 
-                } else if (C >= 3 && C <= 13 && R <= maxTableRow) {
+                } 
+                // Viền linh hoạt cho Table (Bắt đầu từ cột D (index 3) đến hết số cột thực tế)
+                else if (C >= 3 && C < (3 + tableColCount) && R <= maxTableRow) {
                     needBorder = true;
                     if (R === 0) isHeader = true; 
                 }
@@ -671,9 +647,6 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
                         border: { top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} },
                         alignment: { vertical: "center", wrapText: true }
                     };
-                    if (C === 10 || C === 11 || C === 13) {
-                        cellStyle.alignment.horizontal = "right";
-                    }
                     
                     if (isHeader) {
                         cellStyle.fill = { fgColor: { rgb: "B4C6E7" } };
@@ -695,7 +668,7 @@ function triggerAutoDownload_Excel(originalName, fileContent) {
 }
 
 // =====================================================================
-// 8B. ĐÓNG GÓI WORD (MỚI & ĐỘC LẬP HOÀN TOÀN)
+// 8B. ĐÓNG GÓI WORD
 // =====================================================================
 function triggerAutoDownload_Word(originalName, fileContent) {
     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
