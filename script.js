@@ -341,8 +341,7 @@ PHẦN 1: THÔNG TIN CHUNG
 - BỎ QUA (Tuyệt đối không lấy): "Issuer", "Your reference", "Requisitioner".
 - GỘP CHUNG: Thông tin nhà cung cấp (Supplier / Leveranciersgegevens) thành 1 dòng.
 - DELIVER TO (Nơi nhận hàng / Afleveradres / Delivery Address): Trích xuất CHÍNH XÁC NHỮNG CHỮ CÓ TRONG Ô ĐÓ.
-- TRÍCH XUẤT THÊM CÁC TRƯỜNG NÀY (Nếu có): "PURCHASE ORDER NO." (hoặc Nummer/P.O. NUMBER), "PAGE", "Order date" ,  "Datum" , Leverancier: , "DATE OF ISSUE" , "PO number" , "Total Pages" , "Date Requested" ,"Date Required" , ,"Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer", "SUPPLIER A/C NO." (hoặc Leverancier).
-
+- TRÍCH XUẤT THÊM CÁC TRƯỜNG NÀY (Nếu có): "PURCHASE ORDER NO." (hoặc Nummer/P.O. NUMBER), "PAGE", "Order date" ,  "Datum" , Leverancier: , "DATE OF ISSUE" , "PO number" , "Total Pages" , "Date Requested" ,"Date Required" , "Billing Party" , "Vendor" , "Ship to" , "Leveranciersgegevens" , "Afleveradres" ,"Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer", "SUPPLIER A/C NO." (hoặc Leverancier).
 [Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
 "---SPLIT---"
 
