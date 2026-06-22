@@ -321,7 +321,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ & FIX CỘT & LỌC METADATA)
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (UNIVERSAL MAPPING PROMPT)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -335,29 +335,39 @@ function fileToBase64(file) {
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
     
-    // ĐÃ SỬA LẠI PHẦN 1 CỦA PROMPT: Loại bỏ Issuer, Gom Supplier, Gom Deliver
+    // NÂNG CẤP BỘ NÃO: Dạy AI cách Dịch thuật đa Layout (Universal Mapping)
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 YÊU CẦU NGHIÊM NGẶT:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
 2. MỌI GIÁ TRỊ ĐỀU PHẢI ĐƯỢC BỌC TRONG DẤU NGOẶC KÉP (""). VD: "Giá trị 1","Giá trị 2"
-3. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND').
+3. LOẠI BỎ toàn bộ ký hiệu tiền tệ ('$', 'VND', 'US DOLLAR').
 4. XUẤT NGÀY THÁNG BÌNH THƯỜNG.
 
 CẤU TRÚC CSV BẮT BUỘC:
 PHẦN 1: THÔNG TIN CHUNG
 "Trường thông tin","Giá trị"
-- BỎ QUA (Tuyệt đối không trích xuất) các thông tin về: "Issuer" (Company Name, Subsidiary, Address, Phone...), "Your reference", và "Requisitioner".
-- GỘP CHUNG toàn bộ thông tin nhà cung cấp (Supplier ID, Tên công ty, Địa chỉ) thành 1 dòng duy nhất. VD: "Supplier","WW00000395 THAI BINH GROUP 5A XUYEN A HIGHWAY DI AN WARD 820000HO CHI MINH CITYVietnam"
-- GỘP CHUNG toàn bộ thông tin nơi nhận hàng (Deliver To Company Name, Deliver To Detail 1, Address...) thành 1 dòng duy nhất. VD: "Deliver To","ACUSHNET KOREA CO. LTD Acushnet Korea Company Limited MQ Logistics B2..."
-- Trích xuất bình thường (mỗi thông tin 1 dòng) các trường còn lại: "PURCHASE ORDER NO.", "Order date", "Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer".
+- BỎ QUA (Tuyệt đối không lấy): "Issuer" (Company Name, Subsidiary, Address, Phone...), "Your reference", "Requisitioner".
+- GỘP CHUNG toàn bộ thông tin nhà cung cấp (Supplier ID, Tên công ty, Địa chỉ) thành 1 dòng duy nhất. VD: "Supplier","WW00000395 THAI BINH GROUP 5A XUYEN A HIGHWAY DI AN WARD..."
+- GỘP CHUNG toàn bộ thông tin nơi nhận hàng (Deliver To Company Name, Address...) thành 1 dòng duy nhất. VD: "Deliver To","ACUSHNET KOREA CO. LTD Acushnet Korea Company Limited MQ Logistics..."
+- TRÍCH XUẤT các trường cơ bản nếu có trong ảnh: "PURCHASE ORDER NO." (hoặc P.O. NUMBER), "PAGE", "Order date" (hoặc DATE OF ISSUE), "Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer", "SUPPLIER A/C NO.".
 
 [Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
 "---SPLIT---"
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
-- BẮT BUỘC MỖI DÒNG PHẢI CÓ CHÍNH XÁC 11 CỘT (tương đương 10 dấu phẩy ngăn cách).
-- Nếu cột nào trống (ví dụ: Confirmed Del. Date), hãy để rỗng: "",""
-- ĐẶC BIỆT CHÚ Ý: Phải tách rõ ràng ngày tháng vào cột "Req. Due Date" và phương thức (như OCN FOB) vào cột "Delivery Terms". TUYỆT ĐỐI KHÔNG GỘP CHUNG VÀO 1 CỘT.
+- DÙ BẢNG TRONG ẢNH CÓ LAYOUT NHƯ THẾ NÀO (ÍT HAY NHIỀU CỘT), BẮT BUỘC PHẢI QUY CHUẨN VỀ 11 CỘT BÊN DƯỚI. Cột nào trong ảnh không có thì để rỗng "".
+QUY TẮC ĐỐI CHIẾU CỘT:
+- "Ln #": Lấy từ Line/Ln (nếu có).
+- "Item No": Lấy từ 'Item No', 'ACUSHNET PROD No.' hoặc 'Acushnet Sku'.
+- "Description": Lấy từ 'Description' hoặc 'DESCRIPTION OF GOODS'.
+- "Ref. Order #": (Nếu có).
+- "Confirmed Del. Date": (Nếu có).
+- "Req. Due Date": Lấy từ 'Req. Due Date' hoặc 'REQ'D BY'.
+- "Delivery Terms": Lấy từ 'Delivery Terms'. Nếu bảng có cột 'UNIT' thứ hai (chứa giá trị như 'EACH', 'EA') thì ghi vào đây.
+- "Price": Lấy từ 'Price', 'Purch price', 'Unit Costs' hoặc 'PRICE US DOLLAR'.
+- "Quantity": Lấy từ 'Quantity' hoặc 'QUANTITY'.
+- "U/M": Lấy từ 'U/M', 'Unit' hoặc cột 'UNIT' đầu tiên.
+- "Sub Total": Lấy từ 'Sub Total' hoặc 'Total Value US$'. NẾU BẢNG GỐC BỊ KHUYẾT CỘT NÀY, hãy tự làm toán: (Price * Quantity) để điền vào đây.
 
 "Ln #","Item No","Description","Ref. Order #","Confirmed Del. Date","Req. Due Date","Delivery Terms","Price","Quantity","U/M","Sub Total"
 [Dữ liệu các dòng điền vào đây, đảm bảo đủ 11 cột, bọc trong ngoặc kép]
