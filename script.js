@@ -19,17 +19,17 @@ window.onload = () => {
                 id: index + 1, 
                 key: k, 
                 source: "Cố định", 
-                status: "good", // Đổi thành good để sẵn sàng chạy luôn, không cần test
+                status: "good", // Để testing để hệ thống tự đi dò model ngay khi load
                 usageCount: 0,
                 maxLimit: 20,
-                bestModel: 'gemini-2.5-flash' // Mặc định luôn bản 2.5
+                bestModel: 'gemini-2.5-flash'
             });
         }
     });
     updateKeyBadge();
     renderKeyDashboard();
     
-    // ĐÃ XÓA DÒNG testAllKeys();
+    // Đã xóa auto test
 };
 
 function updateKeyBadge() {
@@ -87,6 +87,17 @@ async function pingGeminiKey(keyObj) {
     renderKeyDashboard();
 }
 
+async function testAllKeys() {
+    const btn = document.getElementById('btnTestAll');
+    if(btn) { btn.disabled = true; btn.innerHTML = 'ĐANG DÒ MODEL...'; }
+    
+    for (let k of GLOBAL_KEYS_DB) {
+        await pingGeminiKey(k);
+        await new Promise(resolve => setTimeout(resolve, 800)); 
+    }
+    
+    if(btn) { btn.disabled = false; btn.innerHTML = 'KIỂM TRA ĐỒNG LOẠT'; }
+}
 
 function renderKeyDashboard() {
     const container = document.getElementById('keyStatusContainer');
@@ -146,15 +157,16 @@ function saveApiKeys() {
             id: startId++, 
             key: k, 
             source: "Mới nạp", 
-            status: "testing",
+            status: "good",
             usageCount: 0,
             maxLimit: 20,
-            bestModel: null
+            bestModel: 'gemini-2.5-flash'
         });
     });
 
     document.getElementById('apiKeysInput').value = '';
-    testAllKeys(); // Nạp xong tự động dò model luôn
+    updateKeyBadge();
+    renderKeyDashboard();
 }
 
 function toggleModal(show) {
@@ -309,7 +321,7 @@ function removeFile(id) {
 }
 
 // =====================================================================
-// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL
+// 6A. LOGIC AI - ĐƯỜNG RAY EXCEL (BẢO VỆ QUOTA BẰNG ĐỒNG HỒ & FIX CỘT & LỌC METADATA)
 // =====================================================================
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -322,6 +334,8 @@ function fileToBase64(file) {
 
 async function callGeminiAPI_Excel(file) {
     const base64Data = await fileToBase64(file);
+    
+    // ĐÃ SỬA LẠI PHẦN 1 CỦA PROMPT: Loại bỏ Issuer, Gom Supplier, Gom Deliver
     const promptInstruction = `Bạn là chuyên gia trích xuất dữ liệu từ PDF/Hình ảnh sang CSV.
 YÊU CẦU NGHIÊM NGẶT:
 1. CHỈ TRẢ VỀ CSV thô, ngăn cách bằng dấu phẩy (,). KHÔNG giải thích.
@@ -332,7 +346,10 @@ YÊU CẦU NGHIÊM NGẶT:
 CẤU TRÚC CSV BẮT BUỘC:
 PHẦN 1: THÔNG TIN CHUNG
 "Trường thông tin","Giá trị"
-[Trích xuất TẤT CẢ các trường thông tin chung ở đầu tài liệu thành 2 cột]
+- BỎ QUA (Tuyệt đối không trích xuất) các thông tin về: "Issuer" (Company Name, Subsidiary, Address, Phone...), "Your reference", và "Requisitioner".
+- GỘP CHUNG toàn bộ thông tin nhà cung cấp (Supplier ID, Tên công ty, Địa chỉ) thành 1 dòng duy nhất. VD: "Supplier","WW00000395 THAI BINH GROUP 5A XUYEN A HIGHWAY DI AN WARD 820000HO CHI MINH CITYVietnam"
+- GỘP CHUNG toàn bộ thông tin nơi nhận hàng (Deliver To Company Name, Deliver To Detail 1, Address...) thành 1 dòng duy nhất. VD: "Deliver To","ACUSHNET KOREA CO. LTD Acushnet Korea Company Limited MQ Logistics B2..."
+- Trích xuất bình thường (mỗi thông tin 1 dòng) các trường còn lại: "PURCHASE ORDER NO.", "Order date", "Printout date", "Freight terms", "Payment terms", "Agreement no", "Currency", "Warehouse", "Buyer".
 
 [Sau khi hết Phần 1, BẮT BUỘC thêm đúng 1 dòng có chứa chữ "---SPLIT---" để làm điểm cắt]
 "---SPLIT---"
@@ -353,15 +370,14 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
 
     while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
+        
         let retryCount = 0;
         let fileProcessedSuccessfully = false;
 
         while (retryCount < 3) {
             try {
-                // SỬ DỤNG MODEL ĐÃ ĐƯỢC DÒ THÀNH CÔNG CHO KEY NÀY (HOẶC MẶC ĐỊNH LÀ 1.5 NẾU CHƯA CÓ)
-                const modelToUse = currentKeyObj.bestModel || 'gemini-1.5-flash';
-                
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${currentKeyObj.key}`, {
+                // CHUYỂN SANG DÙNG 2.5-FLASH ĐỂ XỬ LÝ BẢNG BIỂU THÔNG MINH HƠN
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
@@ -371,7 +387,7 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
                     const data = await response.json();
                     let rawText = data.candidates[0].content.parts[0].text;
                     
-                    // NGUYÊN TẮC THÉP: THÀNH CÔNG MỚI ĐƯỢC CỘNG 1 VÀO ĐỒNG HỒ
+                    // CÔNG TƠ MÉT TRUNG THỰC: NHẬN FILE XONG MỚI TRỪ TIỀN
                     currentKeyObj.usageCount++;
                     
                     if (currentKeyObj.usageCount >= currentKeyObj.maxLimit) {
@@ -385,13 +401,15 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
                     return rawText.replace(/```csv\n/g, "").replace(/```/g, "").trim(); 
                 } 
                 else if (response.status === 429 || response.status === 403) {
+                    // GOOGLE BÁO HẾT QUOTA THÌ TỬ HÌNH KEY NÀY NGAY
                     currentKeyObj.usageCount = currentKeyObj.maxLimit;
                     currentKeyObj.status = 'error';
-                    break;
+                    break; 
                 }
                 else {
+                    // Lỗi 500, 503, 404: Mạng lag/Google sập -> KHÔNG CỘNG SỐ. Nghỉ 4s rồi thử lại
                     retryCount++;
-                    await new Promise(r => setTimeout(r, 4000));
+                    await new Promise(r => setTimeout(r, 4000)); 
                 }
             } catch (e) {
                 retryCount++;
@@ -410,7 +428,7 @@ PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
 }
 
 // =====================================================================
-// 6B. LOGIC AI - ĐƯỜNG RAY WORD
+// 6B. LOGIC AI - ĐƯỜNG RAY WORD (SỬ DỤNG MODEL 2.5-FLASH)
 // =====================================================================
 async function callGeminiAPI_Word(file) {
     const base64Data = await fileToBase64(file);
@@ -427,14 +445,14 @@ YÊU CẦU TỐI THƯỢNG:
 
     while (activeKeys.length > 0) {
         const currentKeyObj = activeKeys[currentKeyIndex % activeKeys.length];
+        
         let retryCount = 0;
         let fileProcessedSuccessfully = false;
 
         while (retryCount < 3) {
             try {
-                const modelToUse = currentKeyObj.bestModel || 'gemini-1.5-flash';
-                
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${currentKeyObj.key}`, {
+                // CHUYỂN SANG DÙNG 2.5-FLASH ĐỂ XỬ LÝ VĂN BẢN THÔNG MINH HƠN
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKeyObj.key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptInstruction }, { inlineData: { mimeType: file.type || "application/pdf", data: base64Data } }] }] })
@@ -481,7 +499,7 @@ YÊU CẦU TỐI THƯỢNG:
 }
 
 // =====================================================================
-// 7. CỖ MÁY DÂY CHUYỀN (CHỈ CHẠY 1 FILE, NGHỈ 90 GIÂY) -> BẤT TỬ RPM
+// 7. CỖ MÁY DÂY CHUYỀN (CHỈ CHẠY 1 FILE, NGHỈ 60 GIÂY) -> BẤT TỬ RPM
 // =====================================================================
 processBtn.addEventListener('click', async () => {
     const pendingFiles = fileQueue.filter(f => f.status === 'pending');
@@ -518,21 +536,21 @@ processBtn.addEventListener('click', async () => {
                 triggerAutoDownload_Word(fileQueue[i].file.name, aiGeneratedText);
             }
             
-            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 90 GIÂY MỚI LÀM TIẾP
+            // XONG 1 FILE LÀ PHẢI NGHỈ ĐỦ 60 GIÂY MỚI LÀM TIẾP
             const remainingFiles = fileQueue.filter(f => f.status === 'pending').length;
             if (remainingFiles > 0) {
                 const nextPendingFileIndex = fileQueue.findIndex(f => f.status === 'pending');
                 if (nextPendingFileIndex !== -1) {
                     fileQueue[nextPendingFileIndex].status = 'delaying';
                     
-                    // Hiện nút Vàng đếm ngược nghỉ ngơi 90s
+                    // Hiện nút Vàng đếm ngược nghỉ ngơi 60s
                     processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all bg-yellow-600/20 text-yellow-500 border border-yellow-500/50 cursor-not-allowed";
-                    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 90S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
+                    processBtn.innerHTML = `<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> NGHỈ 60S ĐỂ BẢO VỆ MÁY CHỦ...</span>`;
                     
                     renderQueue();
                     
-                    // ĐỒNG HỒ ĐẾM NGƯỢC 90 GIÂY (90000 ms)
-                    await new Promise(resolve => setTimeout(resolve, 90000)); 
+                    // ĐỒNG HỒ ĐẾM NGƯỢC 60 GIÂY
+                    await new Promise(resolve => setTimeout(resolve, 60000)); 
                     
                     fileQueue[nextPendingFileIndex].status = 'pending';
                     processBtn.className = "w-full shrink-0 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[#1f192e] text-gray-400 border border-gray-700/50";
@@ -542,7 +560,7 @@ processBtn.addEventListener('click', async () => {
             fileQueue[i].status = 'pending'; 
             renderQueue();
             if(error.message === "ALL_DEAD") {
-                showErrorToast();
+                showErrorToast("HẾT API KEY HOẶC ĐÃ QUÁ TẢI TOÀN BỘ!");
                 toggleModal(true); 
             } else {
                 alert(error.message);
