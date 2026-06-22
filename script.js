@@ -347,6 +347,7 @@ PHẦN 1: THÔNG TIN CHUNG
 
 PHẦN 2: BẢNG DỮ LIỆU CHI TIẾT
 - LƯU Ý TỐI QUAN TRỌNG: KHÔNG ÉP BUỘC THEO KHUÔN MẪU 11 CỘT CỐ ĐỊNH NÀO CẢ!
+- LỆNH CẤM ĐẶC BIỆT: BẮT BUỘC BỎ QUA (KHÔNG TRÍCH XUẤT) CỘT CÓ TÊN "Delivery method" / "Delivery terms". Coi như cột này KHÔNG TỒN TẠI trong ảnh (do đó cũng tự động loại bỏ các dữ liệu rác bên dưới như chữ "OCN", "FOB"... để không làm xô lệch bảng).
 - BƯỚC 1: Hãy nhìn vào bảng dữ liệu chính trong ảnh. Trích xuất chính xác các TÊN CỘT (Header) có trong bảng đó để làm dòng đầu tiên của phần 2. Số lượng cột và tên cột phải hoàn toàn khớp với ảnh (VD: Ảnh có 8 cột thì xuất đúng 8 cột).
 - BƯỚC 2: Trích xuất các dòng dữ liệu tương ứng với các cột đó.
 - LƯU Ý VỀ DÒNG GHI CHÚ: Nếu trong bảng có các dòng chỉ chứa văn bản (Ví dụ: "EXF - 10TH SEPT '26"...), hãy nhét chữ đó vào cột mô tả (Ví dụ: Description / Omschrijving), các cột khác để rỗng.
